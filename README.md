@@ -1,8 +1,4 @@
-Dưới đây là file `README.md` hoàn chỉnh bằng tiếng Anh, được viết chuẩn form theo đúng template bạn yêu cầu và tích hợp toàn bộ nội dung của đồ án **Vi-ExToxic (Hate Speech Detection với SLMs & Reasoning)** mà chúng ta đã thảo luận.
 
-Bạn có thể copy toàn bộ nội dung dưới đây vào file `README.md` của mình:
-
-````markdown
 <p align="center">
   <a href="https://www.uit.edu.vn/" title="University of Information Technology" style="border: none;">
     <img src="https://i.imgur.com/WmMnSRt.png" alt="University of Information Technology (UIT)">
@@ -202,5 +198,3 @@ Feel free to check the [issues page](https://www.google.com/search?q=https://git
 
 Distributed under the MIT License. See `LICENSE` for more information.
 
-```
-```

@@ -1,3 +1,8 @@
+Dưới đây là file `README.md` hoàn chỉnh bằng tiếng Anh, được viết chuẩn form theo đúng template bạn yêu cầu và tích hợp toàn bộ nội dung của đồ án **Vi-ExToxic (Hate Speech Detection với SLMs & Reasoning)** mà chúng ta đã thảo luận.
+
+Bạn có thể copy toàn bộ nội dung dưới đây vào file `README.md` của mình:
+
+````markdown
 <p align="center">
   <a href="https://www.uit.edu.vn/" title="University of Information Technology" style="border: none;">
     <img src="https://i.imgur.com/WmMnSRt.png" alt="University of Information Technology (UIT)">
@@ -119,4 +124,83 @@ hate_speech_slm_project/
 ├── app/                    
 │   └── main.py             # Streamlit web application
 ├── requirements.txt        
-└── README.md
+└── README.md               
+````
+
+-----
+
+## **Installation & Usage**
+
+### 1\. Prerequisites
+
+  * Python 3.10+
+  * NVIDIA GPU with CUDA support (Minimum 8GB VRAM for training, 4GB for Inference).
+
+### 2\. Setup Environment
+
+```bash
+# Clone the repository
+git clone [https://github.com/quyen244/hate_speech_slm_project.git](https://github.com/quyen244/hate_speech_slm_project.git)
+cd hate_speech_slm_project
+
+# Create a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows use: venv\Scripts\activate
+
+# Install required packages
+pip install -r requirements.txt
+```
+
+### 3\. Running the Streamlit App
+
+```bash
+streamlit run app/main.py
+```
+
+-----
+
+## **Example Queries**
+
+**Input:**
+
+  * **Text:** "Đúng là thiên tài, làm 10 bài sai cả 11." (A true genius, did 10 exercises and got 11 wrong.)
+  * **Emotion:** Surprise
+
+**AI Output (Reasoning Scaffolding):**
+
+> **\#\#\# Phân tích:** Câu này sử dụng từ ngữ mang nghĩa tích cực là 'thiên tài'. <br>
+> **\#\#\# Tuy nhiên:** Vế sau 'làm 10 bài sai cả 11' tạo ra sự mâu thuẫn trực tiếp và vô lý. Nhãn cảm xúc 'Surprise' ở đây nhấn mạnh sự châm biếm về năng lực yếu kém. <br>
+> **\#\#\# Do đó:** Người nói đang sử dụng hình thức khen ngợi giả tạo để mỉa mai và hạ nhục đối tượng. <br>
+> **\#\#\# Kết luận:** Implicit Toxicity (Độc hại ẩn ý - Mỉa mai).
+
+-----
+
+## **DEMO**
+
+*(Include screenshots or a GIF recording of your Streamlit application here showing the reasoning process being generated step-by-step on the screen).*
+
+\<p align="center"\>
+\<img src="demo\_screenshot.png" width="700" alt="UI Demo"\>
+\</p\>
+
+-----
+
+## **Contributing**
+
+Contributions, issues, and feature requests are welcome\!
+Feel free to check the [issues page](https://www.google.com/search?q=https://github.com/quyen244/hate_speech_slm_project/issues) if you want to contribute.
+
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feature/AmazingFeature`)
+5.  Open a Pull Request
+
+-----
+
+## **License**
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+```
+```

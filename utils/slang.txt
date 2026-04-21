@@ -1,0 +1,149 @@
+ko:không
+khum:không
+k:không
+kg:không
+dc:được
+đc:được
+r:rồi
+z:vậy
+j:gì
+vk:vợ
+ck:chồng
+mik:mình
+mng:mọi người
+cc:con cặc
+đcm:địt cụ mày
+dcm:địt cụ mày
+vcl:vãi cả lồn
+vcl:vãi cả luyện
+vcl:vãi cả lúa
+đm:địt mẹ
+dm:địt mẹ
+đuma:địt mẹ
+cl:cái lồn
+clgt:cái lồn gì thế
+hđ:hành động
+bth:bình thường
+nx:nữa
+ny:người yêu
+ib:inbox
+rep:trả lời
+cmt:bình luận
+stt:trạng thái
+gđ:gia đình
+oke:ok
+iu:yêu
+any:anh người yêu
+eny:em người yêu
+t:tao
+m:mày
+v:vậy
+thui:thôi
+tr:trời
+đr:đúng rồi
+lm:làm
+biết:bt
+thik:thích
+bt:biết
+bik:biết
+pik:biết
+ms:mới
+cx:cũng
+cũm:cũng
+nx:nữa
+chx:chưa
+đag:đang
+đg:đang
+ny:người yêu
+ex:người yêu cũ
+ib:inbox
+rep:trả lời
+cmt:bình luận
+stt:trạng thái
+avt:ảnh đại diện
+mn:mọi người
+mng:mọi người
+t:tao
+m:mày
+ae:anh em
+ac:anh chị
+gđ:gia đình
+hp:hạnh phúc
+sn:sinh nhật
+tk:tài khoản
+mk:mật khẩu
+dt:điện thoại
+đt:điện thoại
+sv:sinh viên
+hs:học sinh
+gv:giáo viên
+btap:bài tập
+kt:kiểm tra
+kq:kết quả
+ks:không sao
+tks:cảm ơn
+thks:cảm ơn
+camon:cảm ơn
+plz:làm ơn
+g9:ngủ ngon
+iu:yêu
+đk:được không
+vcl:vãi cả lồn
+vl:vãi lồn
+vcc:vãi cả cứt
+vch:vãi chưởng
+clgt:cái lồn gì thế
+đm:địt mẹ
+dm:địt mẹ
+đcm:địt cụ mày
+dcm:địt cụ mày
+đmm:địt mẹ mày
+đuma:địt mẹ
+cc:con cặc
+cl:cái lồn
+vđ:vãi đái
+chằm zn:trầm cảm
+ét ô ét:cấp cứu
+lemỏn:sang chảnh
+ô kề:ok
+oke:ok
+ô kê:ok
+r:rồi
+ùi:rồi
+thui:thôi
+hoy:thôi
+z:vậy
+zậy:vậy
+j:gì
+hông:không
+hổng:không
+khum:không
+k:không
+kg:không
+hok:không
+hem:không
+v:vậy
+thía:thế
+đúm:đúng
+mún:muốn
+thưn:thương
+pipi:tạm biệt
+bb:tạm biệt
+pp:tạm biệt
+hđ:hành động
+đt:độc thân
+fa:độc thân
+cr:người mình thích
+crush:người mình thích
+gato:ghen tị
+troll:đùa cợt
+phốt:tố cáo
+trẻ trâu:người hành xử kém
+atsm:ảo tưởng sức mạnh
+klq:không liên quan
+vkl:vãi cả lồn
+vcln:vãi cả lồn luôn
+đm:địt mẹ
+đcm:địt cụ mày
+cc:con cặc
+cl:cái lồn

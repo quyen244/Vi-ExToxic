@@ -214,6 +214,8 @@ class EvaluatorModel:
 # ==========================================
 # 3. ĐỘ ĐO & LỌC DỮ LIỆU (Metric Scoring)
 # ==========================================
+# CHUẨN HÓA NHÃN: Xóa khoảng trắng và chuyển về chữ thường
+
 class EvaluatorData:
     """Đánh giá chất lượng dữ liệu và sự thống nhất giữa các Agent"""
 
@@ -223,25 +225,29 @@ class EvaluatorData:
         Kiểm tra bản ghi có đủ độ tin cậy để làm nhãn chuẩn (Gold Label) hay không.
         """
         try:
-            # 1. Kiểm tra sự khớp nhau giữa Teacher và Verifier
-            t_label = set(row.get('final_label', [])) if isinstance(row.get('final_label'), list) else {row.get('final_label')}
-            v_label = set(row.get('verifier_label', [])) if isinstance(row.get('verifier_label'), list) else {row.get('verifier_label')}
-            is_match = t_label == v_label
+            t_label = (row.get('final_label', ''))
+            v_label = (row.get('verifier_label', ''))
+
+            print(t_label , v_label)
             
-            # 2. Kiểm tra ảo giác
+            # So khớp nhãn
+            is_match = (t_label == v_label) and t_label != ""
+            
+            # Không có ảo giác
             no_hallucination = not row.get('hallucination_detected', True)
             
-            # 3. Điểm logic (Consistency)
-            logic_score = row.get('logic_consistency_score', 0)
-            logic_ok = float(logic_score) >= 4.0
+            # Điểm logic >= 4
+            logic_ok = float(row.get('logic_consistency_score', 0)) >= 4.0
             
-            # 4. Độ tự tin (Confidence)
-            avg_conf = (float(row.get('confidence_score', 0)) + float(row.get('verifier_confidence', 0))) / 2
-            confidence_ok = avg_conf >= 0.8
+            # Độ tự tin trung bình >= 0.8
+            t_conf = float(row.get('confidence_score', 0))
+            v_conf = float(row.get('verifier_confidence', 0))
+            confidence_ok = ((t_conf + v_conf) / 2) >= 0.8
             
             return is_match and no_hallucination and logic_ok and confidence_ok
-        except Exception:
+        except:
             return False
+
 
     @staticmethod
     def get_statistics_metrics(df: pd.DataFrame) -> Dict[str, Any]:
@@ -260,8 +266,9 @@ class EvaluatorData:
             'avg_teacher_confidence': float(df['confidence_score'].mean()),
             'avg_verifier_confidence': float(df.get('verifier_confidence', 0).mean()),
             'hallucination_rate': float(df.get('hallucination_detected', 0).mean()),
+             "avg_logic_score": float(df['logic_consistency_score'].fillna(0).mean()),
             # Tỷ lệ Teacher và Verifier cãi nhau
-            'disagreement_rate': 1 - (df['final_label'] == df['verifier_label']).mean()
+            'agreement_rate': ((df['final_label']) == (df['verifier_label'])).mean()
         }
 
         print("\n" + "-"*30)
@@ -269,7 +276,8 @@ class EvaluatorData:
         print("-"*30)
         for k, v in stats.items():
             print(f"{k:25}: {v:.4f}" if isinstance(v, float) else f"{k:25}: {v}")
-        
+        print("-"*30)
+
         return stats
     
 def test_evaluator_data():
@@ -335,8 +343,41 @@ def test_evaluator_data():
     # Kiểm tra các chỉ số quan trọng
     assert stats['total_samples'] == 4
     assert stats['reliable_samples'] == 1
-    assert stats['disagreement_rate'] == 0.25 # 1/4 mẫu bị lệch nhãn
+    assert stats['agreement_rate'] == 0.75 # 1/4 mẫu bị lệch nhãn
     print("\n=> Kiểm tra Assertions: Hoàn tất (Dữ liệu thống kê chính xác)")
 
 if __name__ == "__main__":
     test_evaluator_data()
+
+# === ĐANG CHẠY TEST CASE CHO EVALUATOR DATA ===
+
+# --- Test: calculate_reliability ---
+# Constructive/Clean Constructive/Clean
+# Sample 1: Reliable=True | ✅ PASS
+# Explicit Hostility Constructive/Clean
+# Sample 2: Reliable=False | ✅ PASS
+# Explicit Hostility Explicit Hostility
+# Sample 3: Reliable=False | ✅ PASS
+# Implicit Toxicity Implicit Toxicity
+# Sample 4: Reliable=False | ✅ PASS
+
+# --- Test: get_statistics_metrics ---
+# Constructive/Clean Constructive/Clean
+# Explicit Hostility Constructive/Clean
+# Explicit Hostility Explicit Hostility
+# Implicit Toxicity Implicit Toxicity
+
+# ------------------------------
+# 📊 THỐNG KÊ CHẤT LƯỢNG DATASET
+# ------------------------------
+# total_samples            : 4
+# reliable_samples         : 1
+# reliability_rate         : 0.2500
+# avg_teacher_confidence   : 0.8825
+# avg_verifier_confidence  : 0.8375
+# hallucination_rate       : 0.2500
+# avg_logic_score          : 4.5000
+# agreement_rate           : 0.7500
+# ------------------------------
+
+# => Kiểm tra Assertions: Hoàn tất (Dữ liệu thống kê chính xác)

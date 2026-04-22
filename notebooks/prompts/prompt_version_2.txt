@@ -2,11 +2,11 @@
 
 **Label System:**
 
-1. Constructive / Clean
+1. Constructive/Clean
 2. Implicit Toxicity
 3. Explicit Hostility
 4. Identity-Based Hate
-5. Ambiguous / Noise
+5. Ambiguous/Noise
 
 **Verification Instructions:**
 

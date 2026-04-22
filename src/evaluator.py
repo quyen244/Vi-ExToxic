@@ -17,7 +17,7 @@ from sklearn.metrics import (
 from config import FINAL_LABELS, OUTPUT_DIR
 
 
-class Evaluator:
+class EvaluatorModel:
     """Evaluate and compare model results (Multi-label)"""
     
     def __init__(self, labels: List[str] = FINAL_LABELS):
@@ -211,13 +211,132 @@ class Evaluator:
         
         return "\n".join(report)
 
+# ==========================================
+# 3. ĐỘ ĐO & LỌC DỮ LIỆU (Metric Scoring)
+# ==========================================
+class EvaluatorData:
+    """Đánh giá chất lượng dữ liệu và sự thống nhất giữa các Agent"""
+
+    @staticmethod
+    def calculate_reliability(row: Dict) -> bool:
+        """
+        Kiểm tra bản ghi có đủ độ tin cậy để làm nhãn chuẩn (Gold Label) hay không.
+        """
+        try:
+            # 1. Kiểm tra sự khớp nhau giữa Teacher và Verifier
+            t_label = set(row.get('final_label', [])) if isinstance(row.get('final_label'), list) else {row.get('final_label')}
+            v_label = set(row.get('verifier_label', [])) if isinstance(row.get('verifier_label'), list) else {row.get('verifier_label')}
+            is_match = t_label == v_label
+            
+            # 2. Kiểm tra ảo giác
+            no_hallucination = not row.get('hallucination_detected', True)
+            
+            # 3. Điểm logic (Consistency)
+            logic_score = row.get('logic_consistency_score', 0)
+            logic_ok = float(logic_score) >= 4.0
+            
+            # 4. Độ tự tin (Confidence)
+            avg_conf = (float(row.get('confidence_score', 0)) + float(row.get('verifier_confidence', 0))) / 2
+            confidence_ok = avg_conf >= 0.8
+            
+            return is_match and no_hallucination and logic_ok and confidence_ok
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_statistics_metrics(df: pd.DataFrame) -> Dict[str, Any]:
+        """Thống kê chi tiết chất lượng của toàn bộ dataset"""
+        total = len(df)
+        if total == 0: return {}
+
+        # Thêm cột tin cậy nếu chưa có
+        if 'is_reliable' not in df.columns:
+            df['is_reliable'] = df.apply(EvaluatorData.calculate_reliability, axis=1)
+
+        stats = {
+            'total_samples': total,
+            'reliable_samples': int(df['is_reliable'].sum()),
+            'reliability_rate': float(df['is_reliable'].mean()),
+            'avg_teacher_confidence': float(df['confidence_score'].mean()),
+            'avg_verifier_confidence': float(df.get('verifier_confidence', 0).mean()),
+            'hallucination_rate': float(df.get('hallucination_detected', 0).mean()),
+            # Tỷ lệ Teacher và Verifier cãi nhau
+            'disagreement_rate': 1 - (df['final_label'] == df['verifier_label']).mean()
+        }
+
+        print("\n" + "-"*30)
+        print("THỐNG KÊ CHẤT LƯỢNG DATASET")
+        print("-"*30)
+        for k, v in stats.items():
+            print(f"{k:25}: {v:.4f}" if isinstance(v, float) else f"{k:25}: {v}")
+        
+        return stats
+    
+def test_evaluator_data():
+    print("=== ĐANG CHẠY TEST CASE CHO EVALUATOR DATA ===\n")
+
+    # 1. TẠO DỮ LIỆU MOCK (Dựa trên CSV của bạn nhưng thêm các cột Verifier)
+    # Chúng ta sẽ tạo 4 trường hợp điển hình:
+    mock_data = [
+        {
+            "input_text": "mng ơi mik mới mua cái đt mới xịn xò lắm lun",
+            "final_label": "Constructive/Clean",
+            "verifier_label": "Constructive/Clean", # Khớp nhãn
+            "confidence_score": 0.98,
+            "verifier_confidence": 0.95,           # Trung bình > 0.8
+            "hallucination_detected": False,       # Không ảo giác
+            "logic_consistency_score": 5,          # Logic tốt
+        }, # => KẾT QUẢ MONG ĐỢI: True (Reliable)
+        
+        {
+            "input_text": "clgt sao m lại làm thế vs t 😡",
+            "final_label": "Explicit Hostility",
+            "verifier_label": "Constructive/Clean", # SAI KHÁC NHÃN
+            "confidence_score": 0.9,
+            "verifier_confidence": 0.8,
+            "hallucination_detected": False,
+            "logic_consistency_score": 4,
+        }, # => KẾT QUẢ MONG ĐỢI: False (Disagreement)
+
+        {
+            "input_text": "Hôm nay t đi học trễ vcl 😂😂😂",
+            "final_label": "Explicit Hostility",
+            "verifier_label": "Explicit Hostility",
+            "confidence_score": 0.7,               # ĐỘ TỰ TIN THẤP (0.7+0.7)/2 = 0.7 < 0.8
+            "verifier_confidence": 0.7,
+            "hallucination_detected": False,
+            "logic_consistency_score": 4,
+        }, # => KẾT QUẢ MONG ĐỢI: False (Low confidence)
+
+        {
+            "input_text": "Giỏi quá vcl cả họ tự hào smirk",
+            "final_label": "Implicit Toxicity",
+            "verifier_label": "Implicit Toxicity",
+            "confidence_score": 0.95,
+            "verifier_confidence": 0.9,
+            "hallucination_detected": True,        # CÓ ẢO GIÁC
+            "logic_consistency_score": 5,
+        }  # => KẾT QUẢ MONG ĐỢI: False (Hallucination)
+    ]
+
+    df_test = pd.DataFrame(mock_data)
+
+    # 2. TEST HÀM 1: calculate_reliability
+    print("--- Test: calculate_reliability ---")
+    for i, row in enumerate(mock_data):
+        is_reliable = EvaluatorData.calculate_reliability(row)
+        status = "✅ PASS" if (i == 0 and is_reliable) or (i > 0 and not is_reliable) else "❌ FAIL"
+        print(f"Sample {i+1}: Reliable={is_reliable} | {status}")
+
+    # 3. TEST HÀM 2: get_statistics_metrics
+    print("\n--- Test: get_statistics_metrics ---")
+    stats = EvaluatorData.get_statistics_metrics(df_test)
+    
+    # Kiểm tra các chỉ số quan trọng
+    assert stats['total_samples'] == 4
+    assert stats['reliable_samples'] == 1
+    assert stats['disagreement_rate'] == 0.25 # 1/4 mẫu bị lệch nhãn
+    print("\n=> Kiểm tra Assertions: Hoàn tất (Dữ liệu thống kê chính xác)")
 
 if __name__ == "__main__":
-    print("Testing Evaluator (Multi-Label)...")
-    
-    evaluator = Evaluator()
-    y_true = [["normal"], ["individuals#hate"], ["groups#offensive", "individuals#hate"], ["normal"]]
-    y_pred = [["normal"], ["individuals#hate"], ["individuals#hate"], ["individuals#offensive"]]
-    
-    result = evaluator.evaluate(y_true, y_pred, "TestModel", "A")
-    evaluator.print_result(result)
+    test_evaluator_data()

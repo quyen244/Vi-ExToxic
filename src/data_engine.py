@@ -21,6 +21,8 @@ logging.basicConfig(
     ]
 )
 
+# ======================= TeacherAnnotator =======================
+# ============================================================
 
 class TeacherAnnotator:
     def __init__(self, prompt_path: str, model: str = "gpt-4o"):
@@ -80,6 +82,8 @@ class TeacherAnnotator:
         tasks = [self.annotate_single(item['text'], item['emotion'], semaphore) for item in data]
         return await tqdm.gather(*tasks, desc="Đang xử lý batch", leave=False)
 
+# ======================= DataVerifier =======================
+# ============================================================
 class DataVerifier:
     def __init__(self, anthropic_provider: Any, system_prompt_path: str):
         self.provider = anthropic_provider
@@ -90,57 +94,75 @@ class DataVerifier:
         with open(path, 'r', encoding='utf-8') as f:
             return f.read().strip()
 
-    async def verify_single_row(self, row: Dict, semaphore: asyncio.Semaphore) -> Dict:
-        """Xử lý kiểm định cho từng dòng dữ liệu"""
-        async with semaphore:
-            # Tạo prompt cho Verifier dựa trên kết quả của Teacher
-            user_input = (
-                f"TEXT: {row.get('input_text')}\n"
-                f"EMOTION: {row.get('input_emotion')}\n"
-                f"TEACHER_THOUGHT: {row.get('thought_trace')}\n"
-                f"TEACHER_LABEL: {row.get('final_label')}"
-            )
+    def _format_batch_input(self, rows: List[Dict]) -> str:
+        """Gom 5 mẫu vào 1 chuỗi văn bản để gửi cho AI"""
+        formatted_text = "Dưới đây là 5 mẫu cần kiểm định:\n\n"
+        for i, row in enumerate(rows):
+            formatted_text += f"--- SAMPLE {i+1} ---\n"
+            formatted_text += f"TEXT: {row.get('input_text')}\n"
+            formatted_text += f"EMOTION: {row.get('input_emotion')}\n"
+            formatted_text += f"TEACHER_LOGIC: {row.get('thought_trace')}\n"
+            formatted_text += f"TEACHER_LABEL: {row.get('final_label')}\n\n"
+        return formatted_text
+
+    async def verify_chunk(self, chunk_rows: List[Dict]) -> List[Dict]:
+        """Gửi 1 request chứa nhiều samples và nhận về 1 list results"""
+        user_input = self._format_batch_input(chunk_rows)
+        
+        try:
+            # Gọi Provider (Claude trả về 1 list JSON)
+            responses = await self.provider.generate_response(self.system_prompt, user_input)
             
-            try:
-                # Gọi Claude qua AnthropicProvider
-                verification = await self.provider.generate_response(self.system_prompt, user_input)
+            # Đảm bảo responses là một list
+            if not isinstance(responses, list):
+                # Fallback nếu AI trả về single object thay vì list
+                responses = [responses]
+
+            verified_results = []
+            for i, row in enumerate(chunk_rows):
+                # Lấy kết quả tương ứng từ AI, nếu thiếu thì gán lỗi
+                v_res = responses[i] if i < len(responses) else {"error": "Missing response in batch"}
                 
-                # Hợp nhất dữ liệu cũ và kết quả kiểm định mới
                 verified_row = {
                     **row,
-                    "verifier_label": verification.get("verifier_label"),
-                    "verifier_confidence": verification.get("verifier_confidence"),
-                    "hallucination_detected": verification.get("hallucination_detected"),
-                    "logic_consistency_score": verification.get("logic_consistency_score"),
-                    "verifier_explanation": verification.get("explanation")
+                    "verifier_label": v_res.get("verifier_label"),
+                    "verifier_confidence": v_res.get("verifier_confidence"),
+                    "hallucination_detected": v_res.get("hallucination_detected"),
+                    "logic_consistency_score": v_res.get("logic_consistency_score"),
+                    "verifier_explanation": v_res.get("explanation")
                 }
-                
-                # Tính toán ngay cột tin cậy
                 verified_row["is_reliable"] = self.evaluator.calculate_reliability(verified_row)
-                return verified_row
+                verified_results.append(verified_row)
+                
+            return verified_results
 
-            except Exception as e:
-                logging.error(f"Error verifying row: {e}")
-                return {**row, "error": str(e), "is_reliable": False}
+        except Exception as e:
+            logging.error(f"Lỗi khi xử lý batch: {e}")
+            return [{**r, "error": str(e), "is_reliable": False} for r in chunk_rows]
 
-    async def process_verification(self, input_csv: str, output_csv: str, batch_size: int = 5):
-        """Đọc file result.csv và xuất ra verified.csv"""
+    async def process_verification(self, input_csv: str, output_csv: str, samples_per_request: int = 5):
+        """Xử lý theo cụm (5 samples/request) và nghỉ 5s"""
         df = pd.read_csv(input_csv)
-        records = df.to_dict('records')
-        
-        semaphore = asyncio.Semaphore(batch_size)
-        tasks = [self.verify_single_row(row, semaphore) for row in records]
-        
-        print(f"🚀 Đang bắt đầu Verify {len(records)} mẫu dữ liệu...")
-        results = await tqdm.gather(*tasks, desc="Verifying with Claude")
-        
-        verified_df = pd.DataFrame(results)
-        verified_df.to_csv(output_csv, index=False, encoding='utf-8-sig')
-        
-        # In thống kê nhanh
-        stats = self.evaluator.get_statistics_metrics(verified_df)
-        print(f"\n✅ Hoàn tất! Đã lưu tại: {output_csv}")
+        data = df.to_dict('records')
+        all_results = []
 
+        # Chia dữ liệu thành các cụm, mỗi cụm gửi 1 request (mỗi request chứa 5 mẫu)
+        for i in range(0, len(data), samples_per_request):
+            chunk = data[i : i + samples_per_request]
+            
+            logging.info(f"Đang xử lý mẫu {i} đến {i + len(chunk)}...")
+            chunk_results = await self.verify_chunk(chunk)
+            all_results.extend(chunk_results)
+            
+            # Nghỉ 5 giây giữa các request để tránh Rate Limit
+            if i + samples_per_request < len(data):
+                logging.info("Đang nghỉ 5s để tránh Rate Limit (TPM/RPM)...")
+                await asyncio.sleep(5)
+
+        verified_df = pd.DataFrame(all_results)
+        verified_df.to_csv(output_csv, index=False, encoding='utf-8-sig')
+        self.evaluator.get_statistics_metrics(verified_df)
+        logging.info(f"✅ Hoàn tất! Đã lưu tại: {output_csv}")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Teacher Knowledge Generation Pipeline")

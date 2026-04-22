@@ -165,8 +165,86 @@ async def run_checks_2():
         except Exception as e:
             print(f"❌ Anthropic Gen Error: {e}")
 
+
+# --- Lớp mô phỏng để test ---
+class MockProvider(LLMProvider):
+    async def generate_response(self, system_prompt: str, user_prompt: str) -> Dict:
+        pass
+    async def health_check(self) -> bool:
+        pass
+
+def test_extract_json():
+    provider = MockProvider()
+    
+    test_cases = [
+        {
+            "name": "JSON Object đơn thuần",
+            "input": '{"status": "ok"}',
+            "expected": {"status": "ok"}
+        },
+        {
+            "name": "JSON Array đơn thuần",
+            "input": '[{"id": 1}, {"id": 2}]',
+            "expected": [{"id": 1}, {"id": 2}]
+        },
+        {
+            "name": "Markdown Code Block (Object)",
+            "input": "Dưới đây là kết quả:\n```json\n{\"key\": \"value\"}\n```\nHết.",
+            "expected": {"key": "value"}
+        },
+        {
+            "name": "Markdown Code Block (Array)",
+            "input": "AI trả về danh sách:\n```json\n[1, 2, 3]\n```",
+            "expected": [1, 2, 3]
+        },
+        {
+            "name": "Văn bản lộn xộn (Array lồng Object)",
+            "input": "Kết quả: [{\"data\": \"{text}\"}] - Hoàn tất",
+            "expected": [{"data": "{text}"}]
+        },
+        {
+            "name": "Object chứa Array bên trong",
+            "input": '{"items": [1, 2, 3]}',
+            "expected": {"items": [1, 2, 3]}
+        },
+        {
+            "name": "Lỗi: Không có JSON",
+            "input": "Đây chỉ là một câu nói bình thường.",
+            "expected": None
+        },
+        {
+            "name": "Lỗi: JSON sai cú pháp",
+            "input": '{"key": "value"', # Thiếu dấu đóng }
+            "expected": None
+        },
+        {
+            "name": "Lỗi: Chuỗi rỗng",
+            "input": "",
+            "expected": None
+        }
+    ]
+
+    print(f"{'STT':<5} | {'Tên Test Case':<35} | {'Kết quả':<10}")
+    print("-" * 60)
+
+    for i, case in enumerate(test_cases):
+        result = provider._extract_json(case["input"])
+        
+        # Kiểm tra kết quả
+        success = result == case["expected"]
+        status = "✅ PASS" if success else "❌ FAIL"
+        
+        print(f"{i+1:<5} | {case['name']:<35} | {status}")
+        if not success:
+            print(f"   [!] Input: {case['input']}")
+            print(f"   [!] Expected: {case['expected']}")
+            print(f"   [!] Got: {result}")
+
 if __name__ == '__main__':
     print("TEST LLM PROVIDER")
+    # test hàm extract 
+    test_extract_json()
+    # test health and response 
     asyncio.run(run_checks_1())
     asyncio.run(run_checks_2())
     print('=' * 10 + "ALL TESTS PASSED !!" + "="*10)

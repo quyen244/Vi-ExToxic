@@ -94,7 +94,6 @@ Return in vietnamese.
   },
   "thought_trace": "Mặc dù câu chữ mang vẻ khen ngợi nhưng kết hợp với cảm xúc nhếch mép và từ cảm thán thô tục, mục đích là để hạ nhục đối phương thông qua hình thức châm biếm.",
   "final_label": "Implicit Toxicity",
-  "confidence_score": 0.95,
-  "suggested_action": "Review"
+  "confidence_score": 0.95
 }
 ```

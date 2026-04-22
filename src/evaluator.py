@@ -265,7 +265,7 @@ class EvaluatorData:
         }
 
         print("\n" + "-"*30)
-        print("THỐNG KÊ CHẤT LƯỢNG DATASET")
+        print("📊 THỐNG KÊ CHẤT LƯỢNG DATASET")
         print("-"*30)
         for k, v in stats.items():
             print(f"{k:25}: {v:.4f}" if isinstance(v, float) else f"{k:25}: {v}")

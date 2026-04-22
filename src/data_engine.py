@@ -8,8 +8,7 @@ import pandas as pd
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm
 from config import Config
-
-
+from evaluator import EvaluatorData
 config = Config()
 
 # logging information 
@@ -81,6 +80,68 @@ class TeacherAnnotator:
         tasks = [self.annotate_single(item['text'], item['emotion'], semaphore) for item in data]
         return await tqdm.gather(*tasks, desc="Đang xử lý batch", leave=False)
 
+class DataVerifier:
+    def __init__(self, anthropic_provider: Any, system_prompt_path: str):
+        self.provider = anthropic_provider
+        self.system_prompt = self._load_prompt(system_prompt_path)
+        self.evaluator = EvaluatorData()
+
+    def _load_prompt(self, path: str) -> str:
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+
+    async def verify_single_row(self, row: Dict, semaphore: asyncio.Semaphore) -> Dict:
+        """Xử lý kiểm định cho từng dòng dữ liệu"""
+        async with semaphore:
+            # Tạo prompt cho Verifier dựa trên kết quả của Teacher
+            user_input = (
+                f"TEXT: {row.get('input_text')}\n"
+                f"EMOTION: {row.get('input_emotion')}\n"
+                f"TEACHER_THOUGHT: {row.get('thought_trace')}\n"
+                f"TEACHER_LABEL: {row.get('final_label')}"
+            )
+            
+            try:
+                # Gọi Claude qua AnthropicProvider
+                verification = await self.provider.generate_response(self.system_prompt, user_input)
+                
+                # Hợp nhất dữ liệu cũ và kết quả kiểm định mới
+                verified_row = {
+                    **row,
+                    "verifier_label": verification.get("verifier_label"),
+                    "verifier_confidence": verification.get("verifier_confidence"),
+                    "hallucination_detected": verification.get("hallucination_detected"),
+                    "logic_consistency_score": verification.get("logic_consistency_score"),
+                    "verifier_explanation": verification.get("explanation")
+                }
+                
+                # Tính toán ngay cột tin cậy
+                verified_row["is_reliable"] = self.evaluator.calculate_reliability(verified_row)
+                return verified_row
+
+            except Exception as e:
+                logging.error(f"Error verifying row: {e}")
+                return {**row, "error": str(e), "is_reliable": False}
+
+    async def process_verification(self, input_csv: str, output_csv: str, batch_size: int = 5):
+        """Đọc file result.csv và xuất ra verified.csv"""
+        df = pd.read_csv(input_csv)
+        records = df.to_dict('records')
+        
+        semaphore = asyncio.Semaphore(batch_size)
+        tasks = [self.verify_single_row(row, semaphore) for row in records]
+        
+        print(f"🚀 Đang bắt đầu Verify {len(records)} mẫu dữ liệu...")
+        results = await tqdm.gather(*tasks, desc="Verifying with Claude")
+        
+        verified_df = pd.DataFrame(results)
+        verified_df.to_csv(output_csv, index=False, encoding='utf-8-sig')
+        
+        # In thống kê nhanh
+        stats = self.evaluator.get_statistics_metrics(verified_df)
+        print(f"\n✅ Hoàn tất! Đã lưu tại: {output_csv}")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Teacher Knowledge Generation Pipeline")
     parser.add_argument('--input', type=str, required=True, help="Path tới file CSV đầu vào")
@@ -90,6 +151,7 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=10, help="Số lượng request gửi song song (Max concurrent)")
     parser.add_argument('--text_col', type=str, default='text', help="Tên cột chứa nội dung text")
     parser.add_argument('--emotion_col', type=str, default='emotion', help="Tên cột chứa cảm xúc")
+    parser.add_argument('--size_pct', type=float, help="Lấy khoảng bao nhiêu dataset")
     parser.add_argument('--test', action='store_true', help="Chạy chế độ test với 5 dòng đầu tiên")
     return parser.parse_args()
 
@@ -148,6 +210,8 @@ async def run_ppipeline_phase_1(args):
     
     # Chế độ lấy mẫu nếu cần (không ghi đè head(5) của test_logic)
     process_df = df.head(10) if args.test else df
+    tmp = int(args.size_pct * len(process_df))
+    process_df = process_df.iloc[:tmp]
 
     records = process_df.rename(
         columns={args.text_col: 'text', args.emotion_col: 'emotion'}

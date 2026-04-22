@@ -20,3 +20,5 @@ class MockSparkStreaming:
             time.sleep(3) # Cứ 3 giây có 1 comment mới
 if __name__ == '__main__':
     print('hi')
+
+# py -m app.inference_service.streaming_engine

@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from inference_service.model_engine import ViExToxicModel
-from inference_service.streaming_engine import MockSparkStreaming
+from app.inference_service.model_engine import ViExToxicModel
+from app.inference_service.streaming_engine import MockSparkStreaming
 from datetime import datetime
 
 # 1. Cấu hình trang
@@ -117,3 +117,6 @@ with tab3:
         st.dataframe(df[['time', 'text', 'final_label', 'confidence_score']])
     else:
         st.info("Chưa có dữ liệu để hiển thị thống kê.")
+
+
+# python -m streamlit run app/frontend/main.py

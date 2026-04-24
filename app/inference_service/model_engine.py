@@ -51,7 +51,8 @@ class QwenInferenceService:
         self.model, self.tokenizer = FastLanguageModel.from_pretrained(
             model_name = model_path,
             max_seq_length = max_seq_length,
-            load_in_4bit = True
+            load_in_4bit = True,
+            cache_dir="/app/models"
         )
         
         # 2. Bật chế độ suy luận nhanh
@@ -131,7 +132,7 @@ class QwenInferenceService:
 
 if __name__ == '__main__':
     qwen_service = QwenInferenceService()
-    
+
     test_cases = [
     {"text": "mng ơi mik mới mua cái đt mới xịn xò lắm lun 📱", "emotion": "happy"},
     {"text": "clgt sao m lại làm thế vs t 😡", "emotion": "angry"},

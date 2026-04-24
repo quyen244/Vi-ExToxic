@@ -20,7 +20,6 @@ app = FastAPI(title="Vi-ExToxic Inference Service")
 # Khởi tạo instance của Qwen Service (Chỉ load model 1 lần khi start server)
 qwen_service = QwenInferenceService()
 
-F
 # --- 3. ENDPOINTS ---
 @app.get("/health")
 def health_check():

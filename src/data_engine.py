@@ -69,8 +69,7 @@ class TeacherAnnotator:
                     "target": result.get("reasoning_scaffolding", {}).get("target"),
                     "thought_trace": result.get("thought_trace"),
                     "final_label": result.get("final_label"),
-                    "confidence_score": result.get("confidence_score"),
-                    "suggested_action": result.get("suggested_action")
+                    "confidence_score": result.get("confidence_score")
                 }
                 return flat_res
 
@@ -110,6 +109,7 @@ class DataVerifier:
                 f"1. Semantic: {row.get('semantic_decoding', 'N/A')}; "
                 f"2. Slang: {row.get('slang_interpretation', 'N/A')}; "
                 f"3. Conflict: {row.get('contextual_conflict', 'N/A')}"
+                f"4. Target: {row.get('target', 'N/A')}"
             )
             
             formatted_text += f"--- SAMPLE {i+1} ---\n"

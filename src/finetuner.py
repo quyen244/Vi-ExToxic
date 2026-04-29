@@ -43,7 +43,7 @@ class QwenFineTuner:
             self.model,
             r = 16,
             target_modules = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-            lora_alpha = 16, # r * 2 or the same rank 
+            lora_alpha = 16,
             lora_dropout = 0,
             bias = "none",
             use_gradient_checkpointing = "unsloth",
@@ -57,9 +57,29 @@ class QwenFineTuner:
         def format_chatml(row):
             # 1. Định nghĩa System Prompt khắt khe
             system_prompt = (
-                "You are a Vietnamese social media expert. Analyze the Text and Emotion. "
-                "Return a JSON object containing: 'reasoning_scaffolding' (with 'semantic_decoding', "
-                "'slang_interpretation', 'contextual_conflict', 'target'), 'thought_trace', and 'final_label'."
+               """ You are a Vietnamese social media expert. Follow these steps to analyze the user's input:
+                    Step 1: Decode semantics, teencode, and slang.
+                    Step 2: Compare Text with Emotion to detect sarcasm or hidden intent.
+                    Step 3: Identify the target of the message.
+                    Step 4: Synthesize logic and assign one of these labels: 
+                    - Constructive/Clean
+                    - Implicit Toxicity
+                    - Explicit Hostility
+                    - Identity-Based Hate
+                    - Ambiguous/Noise
+                    
+                    Return ONLY a JSON object:
+                    {
+                      "reasoning_scaffolding": {
+                        "semantic_decoding": "...",
+                        "slang_interpretation": "...",
+                        "contextual_conflict": "...",
+                        "target": "..."
+                      },
+                      "thought_trace": "Brief step-by-step logic summary in Vietnamese",
+                      "final_label": "Label name"
+                    }
+               """
             )
             
             # 2. Xây dựng nội dung Assistant từ các cột của verified.csv
@@ -97,7 +117,7 @@ class QwenFineTuner:
         dataset = self._prepare_data(train_csv)
 
         print(f"⚡ Starting Training for {epochs} epochs...")
-        FastLanguageModel.for_training(self.model) # Enable for training!
+        FastLanguageModel.for_training(model) # Enable for training!
 
         # 1. Sử dụng SFTConfig (Tránh lỗi AttributeError token)
         training_args = SFTConfig(
@@ -184,8 +204,18 @@ def args_parser():
 # MAIN EXECUTION
 # ==========================================
 async def main():
-
-    args = args_parser()
+    # Giả lập sys.argv nếu chạy trong Notebook
+    import sys
+    if 'ipykernel' in sys.modules:
+        args = argparse.Namespace(
+            input="/kaggle/working/blanced_phase_1_dataset.csv", 
+            output_dir="./trained_qwen_results",
+            epochs=2,
+            batch_size=3,
+            lr=2e-5
+        )
+    else:
+        args = args_parser()
 
     # Chạy quy trình
     qwen = QwenFineTuner()

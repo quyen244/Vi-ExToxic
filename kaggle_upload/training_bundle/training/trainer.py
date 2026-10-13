@@ -71,10 +71,16 @@ def train(config: SFTConfig) -> Path:
     dataset = Dataset.from_list(records)
     LOGGER.info("Loaded %d rows from %s (%s)", len(records), config.data, config.target_mode)
 
+    supports_bf16 = bool(getattr(torch.cuda, "is_bf16_supported", lambda: False)())
+    compute_dtype = torch.bfloat16 if supports_bf16 else torch.float16
+    compute_capability_major, _ = torch.cuda.get_device_capability()
+    # Avoid FP16 GradScaler on pre-Ampere cards: this Unsloth QLoRA path can
+    # produce BF16 adapter gradients, which the FP16 scaler cannot unscale.
+    use_fp16_amp = not supports_bf16 and compute_capability_major >= 8
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=config.model_name,
         max_seq_length=config.max_seq_length,
-        dtype=None,
+        dtype=compute_dtype,
         load_in_4bit=True,
     )
     tokenizer.padding_side = "right"
@@ -92,7 +98,7 @@ def train(config: SFTConfig) -> Path:
     )
     FastLanguageModel.for_training(model)
 
-    bf16 = bool(getattr(torch.cuda, "is_bf16_supported", lambda: False)())
+    bf16 = supports_bf16
     training_args = {
         "output_dir": str(config.output_dir),
         "per_device_train_batch_size": config.batch_size,
@@ -111,12 +117,20 @@ def train(config: SFTConfig) -> Path:
         "seed": config.seed,
         "data_seed": config.seed,
         "bf16": bf16,
-        "fp16": not bf16,
+        "fp16": use_fp16_amp,
         "report_to": "none",
         "completion_only_loss": True,
         "dataset_num_proc": 2,
         "packing": False,
     }
+    LOGGER.info(
+        "Using model compute dtype %s with trainer AMP settings bf16=%s, fp16=%s on compute capability %s.%s",
+        compute_dtype,
+        bf16,
+        use_fp16_amp,
+        compute_capability_major,
+        torch.cuda.get_device_capability()[1],
+    )
     config_parameters = inspect.signature(TRLSFTConfig).parameters
     if "max_length" in config_parameters or _accepts_var_kwargs(TRLSFTConfig):
         training_args["max_length"] = config.max_seq_length

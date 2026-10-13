@@ -8,6 +8,17 @@ The loader reads ZIP members in place and never extracts or modifies the archive
 
 The default student is `unsloth/Qwen2.5-3B-Instruct-bnb-4bit`.
 
+## Mixed precision on Kaggle GPUs
+
+The trainer detects the active CUDA GPU before selecting its precision settings.
+
+On BF16-capable GPUs it loads the model in BF16 and enables BF16 training.
+
+On NVIDIA T4 (compute capability 7.5), it loads the model in FP16 and disables Trainer AMP/GradScaler.
+
+This avoids the BF16-gradient unscale failure observed when FP16 GradScaler is enabled for this Unsloth QLoRA setup.
+
+
 Pass `--model` to use another Hugging Face model ID or a local model directory.
 
 ## Comparison runs
@@ -162,3 +173,12 @@ docker run --rm --gpus all --entrypoint python -v "${PWD}/data:/workspace/data:r
 ```
 
 Compare the `macro_f1` values from the two `evaluation.json` files.
+# Mixed precision on Kaggle GPUs
+
+The trainer detects the active CUDA GPU before selecting its precision settings.
+
+On BF16-capable GPUs it loads the model in BF16 and enables BF16 training.
+
+On NVIDIA T4 (compute capability 7.5), it loads the model in FP16 and disables Trainer AMP/GradScaler.
+
+This avoids the BF16-gradient unscale failure observed when FP16 GradScaler is enabled for this Unsloth QLoRA setup.

@@ -1,4 +1,48 @@
-.env 
+# Python bytecode and tooling caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+kaggle.json
+.kaggle/
+
+# Model weights and local model caches
 models/
+model/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.gguf
+*.onnx
+*.h5
+.cache/
+wandb/
 
+# Training and experiment outputs
+outputs/
+runs/
+checkpoints/
+lightning_logs/
+
+# User-provided source archive and generated Kaggle bundles
+/data/archive.zip
+/dist/
+/kaggle_upload/archive.zip
+/kaggle_upload/training_bundle.zip

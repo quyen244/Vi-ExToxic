@@ -1,0 +1,33 @@
+{
+  "title": "Vi-ExToxic Phase 4 SFT Bundle",
+  "subtitle": "Private inputs and scripts for Vietnamese toxicity SFT",
+  "description": "Private training package containing the phase 1 teacher-labeled archive and the Vi-ExToxic phase 4 Unsloth SFT scripts. The holdout labels are teacher-generated and intended for exploratory comparison.",
+  "id": "quyenuit24/vi-extoxic",
+  "licenses": [
+    {
+      "name": "unknown"
+    }
+  ],
+  "resources": [
+    {
+      "path": "archive.zip",
+      "description": "Phase 1 teacher-labeled training and holdout data archive."
+    },
+    {
+      "path": "training_bundle/training/requirements.txt",
+      "description": "Dependencies for installing the unpacked SFT package in a Kaggle Notebook."
+    },
+    {
+      "path": "training_bundle.zip",
+      "description": "Convenience archive containing the Python package, dependencies, and training instructions."
+    },
+    {
+      "path": "README.md",
+      "description": "Kaggle upload and execution guide."
+    },
+    {
+      "path": "SHA256SUMS.txt",
+      "description": "Checksums for the archive and training source bundle."
+    }
+  ]
+}

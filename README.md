@@ -1,200 +1,225 @@
+# Vi-ExToxic
 
-<p align="center">
-  <a href="https://www.uit.edu.vn/" title="University of Information Technology" style="border: none;">
-    <img src="https://i.imgur.com/WmMnSRt.png" alt="University of Information Technology (UIT)">
-  </a>
-</p>
+Explainable Vietnamese toxicity detection for social media text.
 
-<h1 align="center"><b>SE363 - Vi-ExToxic: Explainable Hate Speech Detection</b></h1>
+**Project:** SE363, 2026
 
-# **SE363 Personal Project: Vi-ExToxic (Explainable Toxic Detection for VN Social Media)**
+**Current status:** Phase 1 teacher annotation is available; phases 2 and 3 are skipped; phase 4 SFT and evaluation tooling is implemented.
 
-> This project focuses on building an **Explainable Hate Speech Detection System** tailored for Vietnamese social media. By leveraging Small Language Models (SLMs) like Qwen2.5-3B / Llama-3.2-3B and combining textual data with **Emotion labels**, the system not only classifies toxic content but also generates a transparent "Thought Process" (Reasoning Path) explaining *why* a specific sentence is toxic, effectively decoding sarcasm and implicit toxicity.
-> 
-> **Technical Highlights:** Implementation of **Reasoning Scaffolding** and **Knowledge Distillation** to transfer reasoning capabilities from Large LLMs (Teacher) to SLMs (Student). Optimized for local execution using **Unsloth** (QLoRA Fine-tuning), **HuggingFace**, and deployed with a **Streamlit** interactive UI. 
+**Results:** Pending. No model has been trained or evaluated by this repository yet.
 
-<p align="center">
-  <img src="thumbnail.png" width="800" alt="Vi-ExToxic Project Thumbnail">
-  <br>
-  <i>(Please replace thumbnail.png with your actual project screenshot)</i>
-</p>
+## Overview
 
----
+Vi-ExToxic studies whether a small instruction model can classify Vietnamese social-media comments and provide a concise explanation.
 
-## **Team Information**
+The phase 1 annotations contain the input text, an emotion label, teacher-written explanation fields, a categorical toxicity label, and a teacher confidence score.
 
-| No. | Student ID | Full Name | Role | Github | Email |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 23521329 | Nguyen Van Quyen | Developer | [quyen244](https://github.com/quyen244) | 23521329@gm.uit.edu.vn |
+The phase 4 training setup supports two response targets using the same input rows and evaluation set:
 
-*(Note: Update your team information if needed)*
+- **Label-only baseline:** the student predicts the final label.
+- **Explanation-distilled SFT:** the student predicts the teacher explanation fields and final label.
 
----
+This is an exploratory response-target comparison on teacher-generated annotations.
 
-## **Table of Contents**
+It does not establish that distillation is better than human-grounded supervision.
 
-* [Overview](#overview)
-* [System Architecture](#system-architecture)
-* [Tech Stack](#tech-stack)
-* [Key Features](#key-features) 
-* [Repository Structure](#repository-structure)
-* [Installation & Usage](#installation--usage)
-* [Example Queries](#example-queries)
-* [DEMO](#demo)
-* [Contributing](#contributing)
-* [License](#license)
+## Current project status
 
----
+| Stage | Status | Notes |
+| --- | --- | --- |
+| 1. Teacher annotation | Available | Annotation CSVs are stored in `data/archive.zip`. |
+| 2. Cross-verification | Skipped | Not performed because of resource constraints. |
+| 3. Cultural review | Skipped | Not performed because of resource constraints. |
+| 4. Student SFT | Tooling implemented | Unsloth LoRA SFT is configured; Kaggle GPU is the intended training environment. |
+| Evaluation | Not run | Baseline and distilled Macro-F1 values remain pending. |
 
-## **Overview**
+## Data
 
-**Vi-ExToxic** is an advanced content moderation system designed to bridge the gap between binary classification and human-like reasoning. Users (or systems) input social media comments along with their contextual emotions, and the AI automatically:
+The source archive is `data/archive.zip` and is read directly by the training pipeline.
 
-1. **Analyzes** the semantics and emotional synergy using a "step-by-step" reasoning approach.
-2. **Identifies** hidden nuances such as sarcasm, passive-aggressiveness, and contextual insults.
-3. **Categorizes** the text into one of 5 deep-context labels (Constructive/Clean, Implicit Toxicity, Explicit Hostility, Identity-Based Hate, Ambiguous/Noise).
-4. **Explains** the final decision through a transparent logic trace.
+The scripts do not need to extract or rewrite this archive.
 
-### **Problem Statement**
-Traditional Hate Speech models (like BERT-based classifiers) act as black boxes, outputting mere binary labels (0 or 1). They often struggle with the complex, context-heavy nature of Vietnamese slang, teencode, and emotional sarcasm. Moderators cannot trust an AI that bans users without providing a valid, culturally aware explanation.
+| Archive member | Rows | Use |
+| --- | ---: | --- |
+| `dataset_phase_1.csv` | 2,774 | Preferred training data. It contains one repeated input text. |
+| `labeled_test_dataset_phase_1.csv` | 320 | Frozen teacher-labeled holdout for exploratory evaluation. |
+| `blanced_train_dataset_phase_1.csv.csv` | 3,810 | Older resampled file. It has 1,334 rows beyond its 2,476 unique inputs and is not the default. |
+| `short_dataset.csv` | 5 | Small example set, not a training or evaluation set. |
 
-### **Solution**
-By utilizing **Knowledge Distillation**, we generate high-quality Chain-of-Thought (CoT) datasets from powerful LLMs (Gemini/GPT-4o). We then enforce a **Reasoning Scaffolding** technique (`### Phân tích` -> `### Tuy nhiên` -> `### Do đó` -> `### Kết luận`) to fine-tune a 3-Billion parameter model (Qwen2.5-3B). This results in a lightweight, explainable, and highly accurate model that can run locally on consumer-grade hardware.
+The train and holdout files have no exact `input_text` overlap.
 
----
+This check does not rule out paraphrases or source-level overlap.
 
-## **System Architecture**
+The holdout labels are teacher-generated, and no evidence shows that they were independently verified by human annotators.
 
-The project architecture is divided into two main pipelines:
+The holdout is highly imbalanced: it contains 231 `Constructive/Clean`, 53 `Explicit Hostility`, 29 `Implicit Toxicity`, 6 `Identity-Based Hate`, and 1 `Ambiguous/Noise` examples.
 
-### 1. Data Engineering & Distillation Pipeline
-* **Stage 1 (Synthesis):** Gemini/GPT-4o acts as the Teacher, generating reasoning traces from Raw Text + Emotion Labels.
-* **Stage 2 (Cross-Verification):** Secondary LLMs evaluate the logic to prevent hallucinations.
-* **Stage 3 (Cultural Check):** Rule-based filtering for the latest Vietnamese Gen-Z slangs.
-* **Stage 4 (Distillation):** Fine-tuning the SLM (Qwen-3B) using `Unsloth` on the curated Gold Dataset.
+Report Macro-F1 together with per-class support, and interpret the score as exploratory because several class counts are too small for a stable estimate.
 
-### 2. Inference & UI Pipeline
-* **Input Layer:** Accepts text and emotion via a Streamlit interface.
-* **Local Inference:** Runs the quantized 4-bit model locally to generate the Reasoning Trace.
-* **Output:** Displays the Thought Process and the Final Label.
+Required training fields are `input_text`, `input_emotion`, and `final_label`.
 
----
+Explanation-distilled SFT also uses `semantic_decoding`, `slang_interpretation`, `contextual_conflict`, `target`, and `thought_trace`.
 
-## **Tech Stack**
+Allowed labels are `Constructive/Clean`, `Implicit Toxicity`, `Explicit Hostility`, `Identity-Based Hate`, and `Ambiguous/Noise`.
 
-* **Core Frameworks:** PyTorch, HuggingFace Transformers
-* **Fine-Tuning:** Unsloth (LoRA/QLoRA for fast & memory-efficient training)
-* **Teacher LLMs (Data Generation):** OpenAI API, Google Gemini API
-* **Student Model:** Qwen2.5-3B-Instruct / Llama-3.2-3B
-* **Frontend UI:** Streamlit
-* **Data Processing:** Pandas, Regex for text normalization
+The `confidence_score` field is the teacher's self-reported confidence and is not an independent quality measure.
 
----
+The preferred training file has the following label counts:
 
-## **Key Features**
+| Label | Training rows |
+| --- | ---: |
+| `Constructive/Clean` | 1,694 |
+| `Explicit Hostility` | 458 |
+| `Implicit Toxicity` | 444 |
+| `Ambiguous/Noise` | 149 |
+| `Identity-Based Hate` | 29 |
 
-* 🧠 **Reasoning Scaffolding:** Forces the AI to strictly follow a logical path before jumping to conclusions, reducing bias and errors.
-* 🎭 **Emotion-Aware Analysis:** Uses underlying emotions (e.g., Sadness, Anger, Surprise) as critical context to detect Sarcasm.
-* 📊 **5-Tier Classification:** Goes beyond "Toxic/Non-Toxic" to classify severity: Clean, Implicit Toxicity, Explicit Hostility, Identity-Based Hate, and Ambiguous.
-* ⚡ **Local & Lightweight:** Runs completely offline on standard GPUs (RTX 3060/4060) using 4-bit Quantization without sacrificing accuracy.
-* 🔍 **X-AI UI (Explainable AI):** A user-friendly dashboard showing the real-time "Thought Path" of the AI.
+## Architecture
 
----
+The training path separates data validation and response formatting from the Unsloth/TRL training adapter.
 
-## **Repository Structure**
+The CLI owns argument parsing and orchestration, while the trainer owns model loading, LoRA configuration, checkpointing, and adapter output.
+
+The archive is an immutable input; model caches, checkpoints, predictions, and metrics belong in an explicit output directory.
+
+```mermaid
+flowchart LR
+    CLI[Training CLI] --> DATA[Archive reader and schema validation]
+    DATA --> FORMAT[Prompt and response formatter]
+    FORMAT --> TRAIN[Unsloth and TRL SFTTrainer]
+    TRAIN --> ADAPTER[LoRA adapter and run artifacts]
+    ADAPTER --> EVAL[Shared holdout evaluation]
+    EVAL --> REPORT[Macro-F1, per-class metrics, predictions]
+```
+
+See [the architecture notes](docs/architecture.md) and [the phase 4 contract](docs/phase4-plan.md).
+
+## Repository layout
 
 ```text
-hate_speech_slm_project/
-├── data/
-│   ├── raw/                # Original Excel/CSV datasets with Emotion labels
-│   ├── processed/          # Cleaned text (normalized teencode, slang)
-│   └── gold_reasoning/     # Distilled dataset with Reasoning Scaffolding (.jsonl)
-├── notebooks/              
-│   ├── 01_data_exploration.ipynb     # EDA and Emotion distribution
-│   └── 02_teacher_distillation.ipynb # API scripts for Teacher model
-├── src/                    
-│   ├── data_engine.py      # Automated reasoning generation scripts
-│   ├── trainer.py          # Unsloth fine-tuning configuration
-│   └── utils.py            # Vietnamese text processing utilities
-├── models/                 # Saved LoRA adapters and quantized GGUF weights
-├── app/                    
-│   └── main.py             # Streamlit web application
-├── requirements.txt        
-└── README.md               
-````
-
------
-
-## **Installation & Usage**
-
-### 1\. Prerequisites
-
-  * Python 3.10+
-  * NVIDIA GPU with CUDA support (Minimum 8GB VRAM for training, 4GB for Inference).
-
-### 2\. Setup Environment
-
-```bash
-# Clone the repository
-git clone [https://github.com/quyen244/hate_speech_slm_project.git](https://github.com/quyen244/hate_speech_slm_project.git)
-cd hate_speech_slm_project
-
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
-
-# Install required packages
-pip install -r requirements.txt
+app/                  Early inference and UI prototypes; not part of the phase 4 training path.
+data/processed/       Cleaned source corpus from the earlier data work.
+data/raw/             Original Excel files.
+docs/                 Architecture and phase 4 contract.
+notebooks/            Phase 1 exploration and annotation notebooks.
+src/                  Earlier data-processing, annotation, and evaluation scripts.
+training/             Phase 4 dataset, prompt, training, and evaluation code.
+utils/                Text-processing utilities and slang list.
 ```
 
-### 3\. Running the Streamlit App
+The earlier app and phase 1 scripts are research prototypes.
 
-```bash
-streamlit run app/main.py
+Their mocked inference and streaming behavior must not be presented as a trained or production model.
+
+## Requirements
+
+- Python 3.12 is recommended for the training environment.
+- An NVIDIA GPU with CUDA is required for Unsloth training.
+- The default student is `unsloth/Qwen2.5-3B-Instruct-bnb-4bit`, following the model family referenced in the existing project.
+- A Kaggle GPU session is the intended training target; the local GTX 1660 Ti has 6 GB VRAM and is intended only for lightweight validation.
+- Docker CLI is optional. A running Docker Engine is required to build the container, and NVIDIA GPU support is required to train inside it.
+- Hugging Face authentication is only needed if the selected model or dataset requires gated access.
+
+Unsloth currently supports Python 3.10 through 3.12 in its installation guidance.
+
+Use the official [Unsloth installation guide](https://docs.unsloth.ai/get-started/installing-%2B-updating/pip-install) to select a compatible PyTorch and CUDA stack for the chosen runtime.
+
+The project uses TRL's `SFTTrainer` and `SFTConfig` interfaces; see the [official TRL SFTTrainer documentation](https://huggingface.co/docs/trl/en/sft_trainer).
+
+## Local setup
+
+Create an isolated Python 3.12 environment before installing the training dependencies.
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 ```
 
------
+Follow the [training setup guide](training/README.md) for dependency installation and validation commands.
 
-## **Example Queries**
+The local GPU in the development environment has 6 GB VRAM, so full Qwen 3B fine-tuning is not the local acceptance target.
 
-**Input:**
+## Kaggle training
 
-  * **Text:** "Đúng là thiên tài, làm 10 bài sai cả 11." (A true genius, did 10 exercises and got 11 wrong.)
-  * **Emotion:** Surprise
+1. Create a Kaggle notebook with a GPU accelerator and attach the `quyenuit24/vi-extoxic` dataset.
+2. Enable notebook Internet so the runtime can download the base model.
+3. Install dependencies and switch to the mounted training package:
 
-**AI Output (Reasoning Scaffolding):**
+   ```python
+   !pip install -r /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle/training/requirements.txt
+   %cd /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+   ```
 
-> **\#\#\# Phân tích:** Câu này sử dụng từ ngữ mang nghĩa tích cực là 'thiên tài'. <br>
-> **\#\#\# Tuy nhiên:** Vế sau 'làm 10 bài sai cả 11' tạo ra sự mâu thuẫn trực tiếp và vô lý. Nhãn cảm xúc 'Surprise' ở đây nhấn mạnh sự châm biếm về năng lực yếu kém. <br>
-> **\#\#\# Do đó:** Người nói đang sử dụng hình thức khen ngợi giả tạo để mỉa mai và hạ nhục đối tượng. <br>
-> **\#\#\# Kết luận:** Implicit Toxicity (Độc hại ẩn ý - Mỉa mai).
+4. Run label-only and explanation-distilled jobs with the same model, seed, sequence length, and optimizer settings.
+5. Save adapters, checkpoints, configuration, and metrics under `/kaggle/working`, then download or publish them before the session ends.
 
------
+Kaggle sessions cannot access the local `D:\Vi-ExToxic` path directly.
 
-## **DEMO**
+The selected archive must be attached or uploaded to the notebook environment.
 
-*(Include screenshots or a GIF recording of your Streamlit application here showing the reasoning process being generated step-by-step on the screen).*
+The [Kaggle upload guide](kaggle_upload/README.md) documents the upload flow, and the [one-file bundle](dist/vi-extoxic-kaggle-upload.zip) is ready to extract and upload.
 
-\<p align="center"\>
-\<img src="demo\_screenshot.png" width="700" alt="UI Demo"\>
-\</p\>
+After each SFT run, `training.publish_model` merges the LoRA adapter into 16-bit weights and uploads the merged model to a Hugging Face model repository.
 
------
+The Kaggle Notebook should have a Secret named `HF_TOKEN` with model repository write access.
 
-## **Contributing**
+Repositories are private by default, and the label-only and distilled runs should use separate repository IDs.
 
-Contributions, issues, and feature requests are welcome\!
-Feel free to check the [issues page](https://www.google.com/search?q=https://github.com/quyen244/hate_speech_slm_project/issues) if you want to contribute.
+```python
+!pip install -r /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle/training/requirements.txt
+%cd /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+!python -m training.publish_model --adapter /kaggle/working/outputs/label-only/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-label-only --target-mode label-only
+!python -m training.publish_model --adapter /kaggle/working/outputs/distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-distilled --target-mode distilled
+```
 
-1.  Fork the Project
-2.  Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the Branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+Authenticate locally with `hf auth login` and download the published model using `hf download YOUR_HF_USERNAME/vi-extoxic-label-only --local-dir models/label-only`.
 
------
+The downloaded model is the input artifact for the next step: connecting model inference to the local UI for hands-on testing.
 
-## **License**
+## Docker
 
-Distributed under the MIT License. See `LICENSE` for more information.
+The training Docker image is an optional environment for a machine with a running Docker Engine and NVIDIA container support.
 
+Docker is not required on Kaggle.
+
+Windows users need Docker Desktop with its WSL 2 engine and NVIDIA GPU support to train inside the container.
+
+Use the Docker build and run commands in `training/README.md` after enabling NVIDIA GPU support in Docker.
+
+Docker image builds do not download the model weights; model loading occurs when the training command runs.
+
+## Evaluation and reporting
+
+Run both target modes against the same frozen holdout with identical decoding settings.
+
+The evaluation report should include Macro-F1, per-class precision/recall/F1 and support, a confusion matrix, and row-level predictions.
+
+Keep raw model outputs and the evaluated predictions with the run configuration so the reported values can be reproduced.
+
+Do not fill in the CV metrics until both runs have completed and the evaluation artifacts have been reviewed.
+
+## CV summary
+
+**Vi-ExToxic | Explainable Vietnamese Toxicity Detection (2026)**
+
+**SE363 - Teacher labeling, LoRA SFT and response-target comparison**
+
+- Prepared teacher annotations for Vietnamese social-media comments with toxicity labels and concise explanations.
+- Set up a label-only LoRA SFT baseline and an explanation-distilled student run using a shared evaluation protocol.
+- Compare both runs on the same teacher-labeled holdout; results are exploratory because the holdout has sparse classes and is not independently verified.
+- Results pending: Baseline Macro-F1 ____ · Distilled Macro-F1 ____ · Difference ____.
+
+## Limitations
+
+- Phases 2 and 3 were skipped because of resource constraints.
+- Teacher annotation confidence is not independent verification.
+- The 320-row holdout has only one `Ambiguous/Noise` example and six `Identity-Based Hate` examples.
+- The repository currently contains no completed SFT run, adapter, or verified model metrics.
+- The inference app and streaming UI are prototypes and can return mocked outputs.
+
+## License
+
+No license file is currently present in this repository.
+
+Add a license before redistributing the project or its data.

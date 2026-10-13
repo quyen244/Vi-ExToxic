@@ -1,146 +1,80 @@
-Chào bạn, đây là giải pháp kiến trúc và thiết kế cơ sở dữ liệu cho yêu cầu của bạn. Hệ thống này được thiết kế để vừa xử lý dữ liệu tức thời từ người dùng (Web UI), vừa xử lý dữ liệu dòng chảy (Streaming) từ YouTube.
+# Architecture
 
-### 1. Sơ đồ kiến trúc (System Architecture)
+## Phase 4 training path
 
-Dưới đây là sơ đồ mô tả luồng dữ liệu:
+The phase 4 code is organized around a thin command-line boundary and separate dataset, prompt, configuration, and training modules.
 
 ```mermaid
-graph TD
-    subgraph "Clients & Sources"
-        User[Web App - User Input]
-        YT[YouTube Live Stream]
-    end
-
-    subgraph "Backend System"
-        BE[Backend API - FastAPI/NodeJS]
-        Worker[YouTube Collector Worker]
-        Queue[(Message Queue - Redis/RabbitMQ)]
-    end
-
-    subgraph "AI Inference Service"
-        Model[Inference Service - LLM/NLP]
-    end
-
-    subgraph "Storage"
-        DB[(PostgreSQL)]
-    end
-
-    %% Luồng từ Web App
-    User -->|1. Submit Text| BE
-    BE -->|2. Request Analysis| Model
-    Model -->|3. Return JSON| BE
-    BE -->|4. Save Result| DB
-    BE -->|5. Response| User
-
-    %% Luồng từ YouTube
-    YT -->|A. Crawl Comments| Worker
-    Worker -->|B. Push Job| Queue
-    Queue -->|C. Trigger| BE
-    
-    %% Hiển thị realtime cho Web App
-    BE -.->|Push Realtime Update| User
+flowchart TD
+    CLI[CLI and orchestration] --> CONFIG[Training configuration]
+    CLI --> DATA[Dataset reader and schema validation]
+    DATA --> PROMPT[Prompt and response formatter]
+    PROMPT --> PORT[Prompt/completion dataset]
+    PORT --> ADAPTER[Unsloth and TRL adapter]
+    ADAPTER --> ARTIFACTS[Checkpoints, adapter, tokenizer, metadata]
+    EVAL[Evaluation CLI] --> DATA
+    EVAL --> MODEL[Unsloth inference adapter]
+    ARTIFACTS --> MODEL
+    MODEL --> REPORT[Metrics and row-level predictions]
 ```
 
----
+The dataset reader is a pure Python component and can validate a CSV member directly inside the ZIP archive.
 
-### 2. Tích hợp YouTube Streaming
+The prompt formatter contains the target-mode rules.
 
-Để tích hợp YouTube Live, chúng ta cần thêm một thành phần **Worker**:
+The label-only target contains only `final_label`.
 
-1.  **YouTube Collector Worker**: Sử dụng thư viện như `pytchat` (Python) hoặc YouTube Data API v3 để lắng nghe comment.
-2.  **Cơ chế đẩy dữ liệu**: 
-    *   Vì YouTube comment có thể đến rất nhanh, nên dùng một **Message Queue (Redis)** để tránh làm nghẽn Backend.
-    *   Backend sẽ lấy từng comment từ hàng đợi, gửi sang **Inference Service** để phân tích, sau đó lưu vào **Postgres**.
-    *   Sử dụng **WebSockets** hoặc **Server-Sent Events (SSE)** để đẩy kết quả từ Backend lên giao diện Web App ngay lập tức mà người dùng không cần load lại trang.
+The distilled target contains the four teacher rationale fields, `thought_trace`, and `final_label`.
 
----
+The training adapter imports Torch, Unsloth, TRL, and Datasets lazily so that schema validation and command help do not require CUDA libraries.
 
-### 3. Thiết kế Database (PostgreSQL)
+The Unsloth adapter loads a 4-bit student, attaches LoRA modules, trains with TRL `SFTTrainer`, saves checkpoints, and writes the final adapter plus run metadata.
 
-Với mục tiêu demo đơn giản nhưng vẫn quản lý được dữ liệu phức tạp của bạn, chúng ta sẽ sử dụng kiểu dữ liệu `JSONB` trong Postgres để lưu trữ phần `reasoning_scaffolding` cho linh hoạt, hoặc tách ra các cột nếu muốn truy vấn sâu.
+Evaluation loads each saved adapter, uses deterministic generation, extracts the categorical label, and writes aggregate metrics and row-level predictions.
 
-#### Bảng: `analysis_results`
+## Data ownership and artifacts
 
-| Cột | Kiểu dữ liệu | Mô tả |
-| :--- | :--- | :--- |
-| `id` | SERIAL (PK) | ID tự tăng |
-| `source` | VARCHAR(50) | 'web_input' hoặc 'youtube_live' |
-| `raw_text` | TEXT | Nội dung gốc người dùng nhập/comment |
-| `semantic_decoding` | TEXT | Giải mã ngữ nghĩa |
-| `slang_interpretation` | TEXT | Giải thích teencode/slang |
-| `contextual_conflict` | TEXT | Xung đột ngữ cảnh |
-| `target` | VARCHAR(255) | Đối tượng mục tiêu |
-| `thought_trace` | TEXT | Suy luận logic cuối cùng |
-| `final_label` | VARCHAR(100) | Nhãn cuối cùng (e.g., Toxic, Positive,...) |
-| `created_at` | TIMESTAMP | Thời gian tạo |
+`data/archive.zip` is a source artifact and must be treated as read-only.
 
-#### SQL Script tạo bảng:
+Dataset parsing is performed in memory; archive members are not extracted into the repository.
 
-```sql
-CREATE TABLE analysis_results (
-    id SERIAL PRIMARY KEY,
-    source VARCHAR(50) NOT NULL, -- 'web' hoặc 'youtube'
-    raw_text TEXT NOT NULL,
-    
-    -- Các trường từ reasoning_scaffolding
-    semantic_decoding TEXT,
-    slang_interpretation TEXT,
-    contextual_conflict TEXT,
-    target VARCHAR(255),
-    
-    -- Trace và Label
-    thought_trace TEXT,
-    final_label VARCHAR(100),
-    
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+Each training mode has its own output directory to prevent checkpoint collisions.
 
--- Index để tìm kiếm nhanh label hoặc source
-CREATE INDEX idx_final_label ON analysis_results(final_label);
-CREATE INDEX idx_source ON analysis_results(source);
-```
+An output directory owns its checkpoints, final adapter, tokenizer files, training metrics, run metadata, evaluation JSON, and predictions CSV.
 
----
+Run metadata records the effective training configuration, source archive checksum, and installed model-training package versions.
 
-### 4. Luồng xử lý dữ liệu (Example Code Logic)
+For resumable training, rerun against the same output directory and select the latest or a specific checkpoint.
 
-Khi Backend nhận được output từ Inference Service, nó sẽ thực hiện logic như sau (ví dụ bằng Python/FastAPI):
+## Comparison contract
 
-```python
-# Giả sử đây là output từ AI Model
-ai_output = {
-  "reasoning_scaffolding": {
-    "semantic_decoding": "...",
-    "slang_interpretation": "...",
-    "contextual_conflict": "...",
-    "target": "..."
-  },
-  "thought_trace": "...",
-  "final_label": "..."
-}
+The baseline and distilled modes use the same annotated training rows, base model, holdout, random seed, and training configuration.
 
-# Logic lưu vào Database
-query = """
-INSERT INTO analysis_results (
-    source, raw_text, semantic_decoding, slang_interpretation, 
-    contextual_conflict, target, thought_trace, final_label
-) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-"""
+The training response is the only intended experimental difference: categorical label only versus teacher explanations plus categorical label.
 
-values = (
-    "youtube", 
-    original_comment,
-    ai_output['reasoning_scaffolding']['semantic_decoding'],
-    ai_output['reasoning_scaffolding']['slang_interpretation'],
-    ai_output['reasoning_scaffolding']['contextual_conflict'],
-    ai_output['reasoning_scaffolding']['target'],
-    ai_output['thought_trace'],
-    ai_output['final_label']
-)
-# Thực thi query...
-```
+The holdout labels were also produced by the teacher.
 
-### Tại sao chọn kiến trúc này?
-1.  **Tính mở rộng**: Sau này bạn có thể thêm TikTok Live hoặc Facebook Live chỉ bằng cách thêm 1 Worker mới mà không cần sửa Backend.
-2.  **Tính ổn định**: Message Queue giúp hệ thống không bị "sập" khi AI Inference xử lý chậm hơn tốc độ comment đổ về.
-3.  **Dễ demo**: PostgreSQL cho phép bạn dùng SQL để thống kê (ví dụ: đếm xem có bao nhiêu comment Toxic từ YouTube trong 5 phút qua).
+They are a frozen reference for exploratory comparison and are not independent ground truth because phases 2 and 3 were skipped.
+
+Per-class support must accompany Macro-F1 because the holdout contains one `Ambiguous/Noise` row and six `Identity-Based Hate` rows.
+
+## Failure and recovery
+
+- A missing archive, ZIP member, column, or valid row fails during dataset validation before model loading begins.
+- An unknown categorical label fails with a CSV row reference instead of being remapped silently.
+- A missing CUDA device stops training with an actionable runtime error.
+- An invalid resume path fails before training starts.
+- A recoverable interrupted run can continue from a checkpoint in its output directory.
+- Evaluation writes predictions alongside metrics so malformed or unparsed model outputs remain auditable.
+
+## Earlier repository modules
+
+`src/` contains phase 1 annotation, provider, processing, and evaluation experiments.
+
+`app/` contains an early inference API, a Streamlit prototype, and mock streaming behavior.
+
+These modules are not dependencies of the phase 4 SFT path.
+
+The app prototype is not a trained model deployment, and the random mock inference class must not be used to report model predictions.
+
+The old `src/finetuner.py` is superseded by the `training/` package because its inputs and trainer invocation do not match the current archive schema.

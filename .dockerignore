@@ -1,2 +1,11 @@
 models/
+.git/
+.venv/
+__pycache__/
+*.py[cod]
+outputs/
+data/archive.zip
+.env
+kaggle_upload/
+dist/
 

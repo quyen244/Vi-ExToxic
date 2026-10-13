@@ -69,10 +69,17 @@ The attached dataset is available at `/kaggle/input/datasets/quyenuit24/vi-extox
 !pip install -r /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle/training/requirements.txt
 ```
 
-Run the project modules from the unpacked source directory:
+Run from writable Kaggle working storage and put the read-only source package on `PYTHONPATH`.
+
+Keep Hugging Face and Unsloth caches under `/kaggle/working`, not under the attached input dataset.
 
 ```python
-%cd /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+%cd /kaggle/working
+%env PYTHONPATH=/kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+%env HF_HOME=/kaggle/working/.cache/huggingface
+%env HF_HUB_CACHE=/kaggle/working/.cache/huggingface/hub
+%env XDG_CACHE_HOME=/kaggle/working/.cache
+!mkdir -p /kaggle/working/.cache/huggingface/hub /kaggle/working/unsloth_compiled_cache /kaggle/working/huggingface_tokenizers_cache
 ```
 
 Validate the training and holdout CSVs before downloading model weights:

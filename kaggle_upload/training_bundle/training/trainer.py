@@ -52,10 +52,10 @@ def train(config: SFTConfig) -> Path:
 
     try:
         import torch
+        from unsloth import FastLanguageModel
         from datasets import Dataset
         from trl import SFTConfig as TRLSFTConfig
         from trl import SFTTrainer
-        from unsloth import FastLanguageModel
     except ImportError as exc:
         raise RuntimeError(
             "Training dependencies are missing. Install training/requirements.txt in a supported "

@@ -63,10 +63,17 @@ For the attached `quyenuit24/vi-extoxic` dataset, install dependencies from its 
 !pip install -r /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle/training/requirements.txt
 ```
 
-Run project commands from the unpacked package directory:
+Run from writable Kaggle working storage and add the read-only source package to `PYTHONPATH`.
+
+This keeps model and compilation caches off the attached input dataset.
 
 ```python
-%cd /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+%cd /kaggle/working
+%env PYTHONPATH=/kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+%env HF_HOME=/kaggle/working/.cache/huggingface
+%env HF_HUB_CACHE=/kaggle/working/.cache/huggingface/hub
+%env XDG_CACHE_HOME=/kaggle/working/.cache
+!mkdir -p /kaggle/working/.cache/huggingface/hub /kaggle/working/unsloth_compiled_cache /kaggle/working/huggingface_tokenizers_cache
 ```
 
 Run the label-only baseline and distilled SFT with matching arguments:

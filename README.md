@@ -144,11 +144,16 @@ The local GPU in the development environment has 6 GB VRAM, so full Qwen 3B fine
 
 1. Create a Kaggle notebook with a GPU accelerator and attach the `quyenuit24/vi-extoxic` dataset.
 2. Enable notebook Internet so the runtime can download the base model.
-3. Install dependencies and switch to the mounted training package:
+3. Install dependencies, then run from writable storage while adding the mounted source package to `PYTHONPATH`:
 
    ```python
    !pip install -r /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle/training/requirements.txt
-   %cd /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+   %cd /kaggle/working
+   %env PYTHONPATH=/kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
+   %env HF_HOME=/kaggle/working/.cache/huggingface
+   %env HF_HUB_CACHE=/kaggle/working/.cache/huggingface/hub
+   %env XDG_CACHE_HOME=/kaggle/working/.cache
+   !mkdir -p /kaggle/working/.cache/huggingface/hub /kaggle/working/unsloth_compiled_cache /kaggle/working/huggingface_tokenizers_cache
    ```
 
 4. Run label-only and explanation-distilled jobs with the same model, seed, sequence length, and optimizer settings.
@@ -167,8 +172,6 @@ The Kaggle Notebook should have a Secret named `HF_TOKEN` with model repository 
 Repositories are private by default, and the label-only and distilled runs should use separate repository IDs.
 
 ```python
-!pip install -r /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle/training/requirements.txt
-%cd /kaggle/input/datasets/quyenuit24/vi-extoxic/training_bundle
 !python -m training.publish_model --adapter /kaggle/working/outputs/label-only/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-label-only --target-mode label-only
 !python -m training.publish_model --adapter /kaggle/working/outputs/distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-distilled --target-mode distilled
 ```

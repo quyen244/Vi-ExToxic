@@ -13,7 +13,7 @@ from typing import Any
 
 from .config import SFTConfig
 from .data import read_examples
-from .prompts import to_prompt_completion
+from .prompts import PROMPT_VERSION, to_prompt_completion
 
 LOGGER = logging.getLogger(__name__)
 
@@ -174,6 +174,8 @@ def train(config: SFTConfig) -> Path:
     metadata["output_dir"] = str(config.output_dir)
     metadata["resume_from_checkpoint"] = resume
     metadata["training_rows"] = len(examples)
+    metadata["prompt_language"] = "en" if config.target_mode == "cot-en" else "vi"
+    metadata["prompt_version"] = PROMPT_VERSION
     metadata["data_sha256"] = hashlib.sha256(config.data.read_bytes()).hexdigest()
     metadata["software_versions"] = {}
     for package in ("torch", "unsloth", "trl", "transformers", "datasets", "accelerate"):
@@ -181,8 +183,8 @@ def train(config: SFTConfig) -> Path:
             metadata["software_versions"][package] = importlib.metadata.version(package)
         except importlib.metadata.PackageNotFoundError:
             metadata["software_versions"][package] = "unknown"
-    (config.output_dir / "run_metadata.json").write_text(
-        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
-    )
+    metadata_json = json.dumps(metadata, ensure_ascii=False, indent=2) + "\n"
+    (config.output_dir / "run_metadata.json").write_text(metadata_json, encoding="utf-8")
+    (adapter_dir / "run_metadata.json").write_text(metadata_json, encoding="utf-8")
     LOGGER.info("Saved adapter and run metadata to %s", adapter_dir)
     return adapter_dir

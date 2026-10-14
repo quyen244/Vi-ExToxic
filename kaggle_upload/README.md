@@ -54,7 +54,7 @@ Kaggle extracts ZIP files into folders, so including both creates a `training_bu
 If `quyenuit24/vi-extoxic` already exists, publish a new dataset version instead:
 
 ```powershell
-.\.venv\Scripts\kaggle.exe datasets version -p .\kaggle_upload -m "Add no-CoT and CoT SFT variants" -r skip
+.\.venv\Scripts\kaggle.exe datasets version -p .\kaggle_upload -m "Add Vietnamese prompts and CoT language comparison" -r skip
 ```
 
 The dataset includes `archive.zip`, the unpacked `training_bundle/training/` package, and the README and checksum files.
@@ -91,37 +91,64 @@ Validate the training and holdout CSVs before downloading model weights:
 ```python
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --validate-only
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --validate-only
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-en --output-dir /kaggle/working/outputs/cot-en --validate-only
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled --validate-only
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/holdout-validation --validate-only
 ```
 
-## 5. Run all three SFT variants
+## 5. Run the four adapters in three experiment groups
 
-These commands use the same student, data, seed, sequence length, and optimizer settings.
+The experiment groups are no-CoT baseline, CoT-distilled, and CoT prompt language comparison (Vietnamese versus English).
 
-Run all three in the same notebook session when time allows.
+This means four adapters: `no-cot`, `cot-distilled`, `cot` (Vietnamese instructions), and `cot-en` (English instructions).
+
+The `cot` and `cot-en` adapters use the same teacher completion targets and differ only in prompt language.
+
+Batch size 1 with gradient accumulation 8 is the safer starting point on a Kaggle T4 with 16 GB of VRAM.
+
+Run the four adapter jobs in the same notebook session when time allows.
 
 Each process releases GPU memory when it exits.
 
 ```python
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-en --output-dir /kaggle/working/outputs/cot-en --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
 ```
 
 The default model is `unsloth/Qwen2.5-3B-Instruct-bnb-4bit`.
 
 Pass `--model <HF_MODEL_ID>` to each command if you select another model.
 
-## 6. Evaluate all three variants on the shared holdout
+## 6. Evaluate all four adapters on the same held-out CSV
 
 ```python
-!python -m training.evaluate_sft --adapter /kaggle/working/outputs/no-cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot/evaluation
-!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot/evaluation
-!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/no-cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode no-cot --max-seq-length 4096 --output-dir /kaggle/working/outputs/no-cot/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot-distilled/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-en/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-en --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot-en/evaluation
 ```
 
 Each evaluation directory contains `evaluation.json` and `predictions.csv`.
+
+Run a second evaluation with three fixed rare-class demonstrations for No-CoT, Vietnamese CoT, and CoT-distilled.
+The demonstrations include your Implicit Toxicity example plus Identity-Based Hate and Ambiguous/Noise examples from the training split.
+They are never read from the held-out CSV.
+
+```python
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/no-cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode no-cot --few-shot --max-seq-length 4096 --output-dir /kaggle/working/outputs/no-cot/evaluation-few-shot
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot --few-shot --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot/evaluation-few-shot
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --few-shot --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot-distilled/evaluation-few-shot
+```
+
+After all seven evaluation runs finish, generate a formatted Markdown comparison:
+
+```python
+!python -m training.present_results --results-dir /kaggle/working/outputs --output /kaggle/working/outputs/comparison.md
+```
+
+The report contains overall Accuracy and Macro-F1, the CoT English-versus-Vietnamese comparison, few-shot versus no-shot changes for the three selected modes, per-class F1, and class support.
 
 The holdout labels were produced by the teacher, and the rarest class has one example.
 
@@ -182,7 +209,7 @@ Create one archive of adapters, run metadata, and evaluation outputs before the 
 
 Save a notebook version with output and download `vi-extoxic-results.zip` from the notebook's output files.
 
-If all three runs do not fit in one session, download or save each completed run before ending its session.
+If all four adapter runs do not fit in one session, download or save each completed run before ending its session.
 
 ## Resume a run
 
@@ -192,4 +219,4 @@ If a checkpoint exists in the same Kaggle working session or has been restored t
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --resume-from-checkpoint latest --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
 ```
 
-Use separate output directories for `cot` and `cot-distilled` runs.
+Use separate output directories for `cot`, `cot-en`, and `cot-distilled` runs.

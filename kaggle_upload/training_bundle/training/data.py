@@ -16,8 +16,8 @@ LABELS = (
 )
 
 REQUIRED_COLUMNS = ("input_text", "input_emotion", "final_label")
-TARGET_MODES = ("no-cot", "cot", "cot-distilled", "label-only", "distilled")
-_MODE_ALIASES = {"label-only": "no-cot", "distilled": "cot-distilled"}
+TARGET_MODES = ("no-cot", "cot", "cot-distilled", "cot-en", "label-only", "distilled")
+_MODE_ALIASES = {"label-only": "no-cot", "distilled": "cot-distilled", "cot-en": "cot"}
 CONFIDENCE_COLUMN = "confidence_score"
 RATIONALE_COLUMNS = (
     "semantic_decoding",

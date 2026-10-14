@@ -11,6 +11,7 @@ DEFAULT_BASE_MODEL = "unsloth/Qwen2.5-3B-Instruct-bnb-4bit"
 TARGET_MODE_DESCRIPTIONS = {
     "no-cot": "predict the toxicity category without generating reasoning",
     "cot": "predict the toxicity category with a teacher-generated thought trace and confidence score",
+    "cot-en": "predict the toxicity category with a teacher-generated thought trace and confidence score using English instructions",
     "cot-distilled": "predict the toxicity category with structured rationale, a teacher-generated thought trace, and confidence score",
     "label-only": "predict the toxicity category without generating reasoning",
     "distilled": "predict the toxicity category with structured rationale, a teacher-generated thought trace, and confidence score",

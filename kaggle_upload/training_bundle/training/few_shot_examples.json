@@ -1,0 +1,41 @@
+[
+  {
+    "id": "user-provided-implicit-toxicity-smirk",
+    "input_text": "m giỏi quá , cả dòng họ từ hào vcl 😏",
+    "input_emotion": "smirk",
+    "semantic_decoding": "Cụm 'giỏi quá' và 'cả dòng họ tự hào' có hình thức lời khen. Từ cảm thán 'vcl' làm câu nói suồng sã và mạnh hơn.",
+    "slang_interpretation": "'vcl' là viết tắt của 'vãi cả lồn', một từ cảm thán thô tục thường dùng để nhấn mạnh.",
+    "contextual_conflict": "Cảm xúc 'smirk' mâu thuẫn với lời khen trên bề mặt, gợi ý câu nói mang ý mỉa mai.",
+    "target": "Cá nhân người đối diện và gia đình của họ.",
+    "thought_trace": "Câu chữ có vẻ khen ngợi nhưng cảm xúc nhếch mép và cách dùng từ thô tục cho thấy ý mỉa mai nhằm hạ thấp người đối diện.",
+    "final_label": "Implicit Toxicity",
+    "confidence_score": 0.95,
+    "source": "user-provided"
+  },
+  {
+    "id": "training-identity-based-hate",
+    "input_text": "gái đĩ già mồm",
+    "input_emotion": "Disgust",
+    "semantic_decoding": "Cụm từ 'gái đĩ già mồm' là một sự xúc phạm, ám chỉ phụ nữ có hành vi không đứng đắn và hay cãi cọ.",
+    "slang_interpretation": "Không có teencode hay slang cần giải mã thêm.",
+    "contextual_conflict": "Emotion 'Disgust' phù hợp với nội dung xúc phạm của câu.",
+    "target": "Phụ nữ, có thể là một cá nhân cụ thể hoặc phụ nữ nói chung.",
+    "thought_trace": "Câu này sử dụng ngôn ngữ xúc phạm để chỉ trích phụ nữ, phù hợp với cảm xúc ghê tởm. Đây là một ví dụ rõ ràng của sự thù ghét dựa trên danh tính giới tính.",
+    "final_label": "Identity-Based Hate",
+    "confidence_score": 0.98,
+    "source": "training-split"
+  },
+  {
+    "id": "training-ambiguous-noise",
+    "input_text": "là gì nhỉ ???",
+    "input_emotion": "Other",
+    "semantic_decoding": "Câu hỏi 'là gì nhỉ ???' là một câu hỏi đơn giản, không có ngữ cảnh cụ thể.",
+    "slang_interpretation": "Không có từ lóng hoặc teencode nào cần giải mã.",
+    "contextual_conflict": "Không có mâu thuẫn giữa nội dung văn bản và cảm xúc 'Other'.",
+    "target": "Không rõ ràng, không có mục tiêu cụ thể.",
+    "thought_trace": "Câu hỏi này quá ngắn và thiếu thông tin để đưa ra bất kỳ kết luận rõ ràng nào về ý định hoặc cảm xúc thực sự của người viết.",
+    "final_label": "Ambiguous/Noise",
+    "confidence_score": 0.8,
+    "source": "training-split"
+  }
+]

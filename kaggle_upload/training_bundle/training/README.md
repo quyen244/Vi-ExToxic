@@ -14,13 +14,17 @@ The student prompt is built in `training/prompts.py` and follows the role, task,
 
 The phase 1 CSV contains `confidence_score` as a teacher self-reported value.
 
-There are three student target modes for an ablation: `no-cot`, `cot`, and `cot-distilled`.
+There are four trained adapters grouped into three comparisons: the no-CoT baseline, CoT-distilled, and CoT prompt-language comparison (Vietnamese versus English).
 
 `no-cot` predicts only `final_label`, making it the label-only baseline.
 
-`cot` predicts the teacher's `thought_trace`, `final_label`, and numeric `confidence_score`.
+`cot` uses Vietnamese instructions to decode wording and slang, compare text with emotion, identify the target, and synthesize those steps in `thought_trace` before predicting `final_label` and numeric `confidence_score`.
 
-`cot-distilled` predicts the four structured rationale fields, `thought_trace`, `final_label`, and numeric `confidence_score`.
+`cot-en` uses English instructions for the same CoT task and the same teacher-generated Vietnamese completion targets as `cot`.
+
+`cot` and `cot-en` are separate adapter runs so their held-out results compare prompt language under the same dataset, labels, target fields, and training settings.
+
+`cot-distilled` uses Vietnamese instructions and returns the four structured reasoning fields (`semantic_decoding`, `slang_interpretation`, `contextual_conflict`, and `target`), synthesizes them in `thought_trace`, then predicts `final_label` and numeric `confidence_score`.
 
 The five definitions are `Constructive/Clean` for harmless or positive content; `Implicit Toxicity` for indirect or sarcastic attacks; `Explicit Hostility` for direct insults, profanity, offensive language, or threats; `Identity-Based Hate` for attacks based on region, gender, religion, appearance, or body; and `Ambiguous/Noise` when the text is too unclear to interpret reliably.
 
@@ -38,13 +42,19 @@ Pass `--model` to use another Hugging Face model ID or a local model directory.
 
 ## Comparison runs
 
-Use the same model, train CSV, sequence length, random seed and SFT arguments for all three targets.
+Use the same model, train CSV, sequence length, random seed and SFT arguments for all four adapter runs.
 
 `no-cot` is the hard-label baseline and trains the model to return only `final_label`.
 
-`cot` trains on the teacher's `thought_trace`, label, and confidence.
+`cot` and `cot-en` train on the teacher's same `thought_trace`, label, and confidence.
 
 `cot-distilled` adds the teacher's four structured reasoning fields to the CoT target.
+
+The evaluation command checks the adapter's saved run metadata and rejects a target-mode or prompt-language mismatch.
+
+Inference-only rare-class few-shot examples are stored in `training/few_shot_examples.json`.
+The fixed three-shot set contains the user-provided Implicit Toxicity sample plus one Identity-Based Hate and one Ambiguous/Noise example from the training split.
+Pass `--few-shot` to `training.evaluate_sft` for the no-CoT, Vietnamese CoT, or CoT-distilled few-shot runs.
 
 All variants use the same teacher-labeled training data in the archive.
 
@@ -67,6 +77,7 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python -m compileall -q training
 .\.venv\Scripts\python -m training.train_sft --data data/archive.zip --target-mode no-cot --output-dir outputs\no-cot --validate-only
 .\.venv\Scripts\python -m training.train_sft --data data/archive.zip --target-mode cot --output-dir outputs\cot --validate-only
+.\.venv\Scripts\python -m training.train_sft --data data/archive.zip --target-mode cot-en --output-dir outputs\cot-en --validate-only
 .\.venv\Scripts\python -m training.train_sft --data data/archive.zip --target-mode cot-distilled --output-dir outputs\cot-distilled --validate-only
 ```
 
@@ -105,12 +116,39 @@ This keeps model and compilation caches off the attached input dataset.
 !mkdir -p /kaggle/working/.cache/huggingface/hub /kaggle/working/unsloth_compiled_cache /kaggle/working/huggingface_tokenizers_cache
 ```
 
-Run the three SFT variants with matching arguments:
+Run the four adapters in three experiment groups: no-CoT baseline, CoT-distilled, and the CoT prompt-language comparison.
 
 ```python
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --seed 3407
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --seed 3407
 !python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-en --output-dir /kaggle/working/outputs/cot-en --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --seed 3407
+```
+
+`cot` uses Vietnamese instructions and `cot-en` uses English instructions.
+Both use the same Vietnamese teacher-generated output targets and record their prompt language and version in the adapter metadata.
+
+Evaluate each adapter with its matching `--target-mode`.
+Then repeat inference with `--few-shot` for the three Vietnamese modes; this adds the same three fixed demonstrations from `training/few_shot_examples.json` without changing the trained adapters.
+The CoT-English adapter is evaluated without demonstrations so the CoT language comparison remains a no-shot comparison.
+
+```python
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/no-cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode no-cot --max-seq-length 4096 --output-dir /kaggle/working/outputs/no-cot/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot-distilled/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-en/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-en --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot-en/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/no-cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode no-cot --few-shot --max-seq-length 4096 --output-dir /kaggle/working/outputs/no-cot/evaluation-few-shot
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot --few-shot --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot/evaluation-few-shot
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --few-shot --max-seq-length 4096 --output-dir /kaggle/working/outputs/cot-distilled/evaluation-few-shot
+```
+
+Use the same `--max-seq-length 4096` on every evaluation so all prompt treatments share the same context limit.
+The evaluator records whether few-shot examples were used and verifies the adapter's training mode, prompt language, and prompt version.
+
+Generate the formatted report after all seven evaluations:
+
+```python
+!python -m training.present_results --results-dir /kaggle/working/outputs --output /kaggle/working/outputs/comparison.md
 ```
 
 Enable Kaggle Internet to download the default Hugging Face model, or pass a local model path with `--model`.
@@ -128,6 +166,7 @@ Publish each target mode to its own repository.
 ```python
 !python -m training.publish_model --adapter /kaggle/working/outputs/no-cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-no-cot --target-mode no-cot
 !python -m training.publish_model --adapter /kaggle/working/outputs/cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot --target-mode cot
+!python -m training.publish_model --adapter /kaggle/working/outputs/cot-en/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot-en --target-mode cot-en
 !python -m training.publish_model --adapter /kaggle/working/outputs/cot-distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot-distilled --target-mode cot-distilled
 ```
 
@@ -157,7 +196,7 @@ Run the baseline in PowerShell with the archive mounted read-only and outputs pe
 docker run --rm --gpus all -v "${PWD}/data:/workspace/data:ro" -v "${PWD}/outputs:/workspace/outputs" vi-extoxic-sft --data /workspace/data/archive.zip --zip-member dataset_phase_1.csv --target-mode no-cot --output-dir /workspace/outputs/no-cot
 ```
 
-Use `--target-mode cot` or `--target-mode cot-distilled` and matching output directories for the other two variants.
+Use `--target-mode cot`, `--target-mode cot-en`, or `--target-mode cot-distilled` and matching output directories for the other variants.
 
 Docker GPU access requires Docker Desktop with its WSL 2 engine and a compatible NVIDIA driver on Windows.
 
@@ -177,7 +216,7 @@ Keep each target mode in a separate output directory so checkpoints and adapters
 
 ## Evaluate
 
-Evaluate all three adapters against the same held-out examples.
+Evaluate all four adapters against the same held-out examples.
 
 Macro-F1 averages the F1 score for all five labels, assigning zero to a label with no true or predicted examples.
 
@@ -190,10 +229,11 @@ With Docker, use the same held-out ZIP member for every adapter:
 ```powershell
 docker run --rm --gpus all --entrypoint python -v "${PWD}/data:/workspace/data:ro" -v "${PWD}/outputs:/workspace/outputs" vi-extoxic-sft -m training.evaluate_sft --adapter /workspace/outputs/no-cot/adapter --data /workspace/data/archive.zip --zip-member labeled_test_dataset_phase_1.csv --target-mode no-cot --output-dir /workspace/outputs/no-cot/evaluation
 docker run --rm --gpus all --entrypoint python -v "${PWD}/data:/workspace/data:ro" -v "${PWD}/outputs:/workspace/outputs" vi-extoxic-sft -m training.evaluate_sft --adapter /workspace/outputs/cot/adapter --data /workspace/data/archive.zip --zip-member labeled_test_dataset_phase_1.csv --target-mode cot --output-dir /workspace/outputs/cot/evaluation
+docker run --rm --gpus all --entrypoint python -v "${PWD}/data:/workspace/data:ro" -v "${PWD}/outputs:/workspace/outputs" vi-extoxic-sft -m training.evaluate_sft --adapter /workspace/outputs/cot-en/adapter --data /workspace/data/archive.zip --zip-member labeled_test_dataset_phase_1.csv --target-mode cot-en --output-dir /workspace/outputs/cot-en/evaluation
 docker run --rm --gpus all --entrypoint python -v "${PWD}/data:/workspace/data:ro" -v "${PWD}/outputs:/workspace/outputs" vi-extoxic-sft -m training.evaluate_sft --adapter /workspace/outputs/cot-distilled/adapter --data /workspace/data/archive.zip --zip-member labeled_test_dataset_phase_1.csv --target-mode cot-distilled --output-dir /workspace/outputs/cot-distilled/evaluation
 ```
 
-Compare the `macro_f1` values from the three `evaluation.json` files.
+Compare the `macro_f1` values from the four `evaluation.json` files or generate a Markdown report with `python -m training.present_results --results-dir outputs --output outputs/comparison.md`.
 # Mixed precision on Kaggle GPUs
 
 The trainer detects the active CUDA GPU before selecting its precision settings.

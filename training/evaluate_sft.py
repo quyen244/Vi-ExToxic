@@ -10,7 +10,8 @@ from collections import Counter
 from pathlib import Path
 
 from .data import LABELS, read_examples
-from .prompts import TARGET_MODES, to_prompt_completion
+from .few_shot import FEW_SHOT_LABELS, load_few_shot_examples
+from .prompts import PROMPT_VERSION, TARGET_MODES, to_prompt_completion
 
 
 def extract_label(text: str) -> str | None:
@@ -74,6 +75,9 @@ def classification_report(
 
 
 def evaluate(args: argparse.Namespace) -> dict[str, object]:
+    if args.few_shot and args.target_mode not in {"no-cot", "cot", "cot-distilled"}:
+        raise ValueError("Few-shot evaluation is supported for no-cot, cot (Vietnamese), and cot-distilled only")
+    few_shot_examples = load_few_shot_examples() if args.few_shot else []
     try:
         import torch
         from unsloth import FastLanguageModel
@@ -81,6 +85,32 @@ def evaluate(args: argparse.Namespace) -> dict[str, object]:
         raise RuntimeError("Install training dependencies before running adapter evaluation.") from exc
     if not torch.cuda.is_available():
         raise RuntimeError("Adapter evaluation requires a CUDA GPU in this Unsloth setup.")
+
+    metadata_path = args.adapter / "run_metadata.json"
+    if not metadata_path.is_file():
+        metadata_path = args.adapter.parent / "run_metadata.json"
+    if not metadata_path.is_file():
+        raise FileNotFoundError(
+            f"Training metadata is missing beside the adapter: {metadata_path}. "
+            "Train with the current bundle so evaluation can verify the prompt match."
+        )
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    trained_mode = metadata.get("target_mode")
+    if not trained_mode:
+        raise ValueError(f"Training metadata has no target_mode: {metadata_path}")
+    mode_aliases = {"label-only": "no-cot", "distilled": "cot-distilled"}
+    if mode_aliases.get(args.target_mode, args.target_mode) != mode_aliases.get(trained_mode, trained_mode):
+        raise ValueError(
+            f"Prompt mismatch: adapter was trained with target-mode={trained_mode}, "
+            f"but evaluation requested target-mode={args.target_mode}. Use the training mode."
+        )
+    trained_language = metadata.get("prompt_language")
+    expected_language = "en" if args.target_mode == "cot-en" else "vi"
+    if trained_language != expected_language or metadata.get("prompt_version") != PROMPT_VERSION:
+        raise ValueError(
+            "Prompt mismatch: this adapter was not trained with the current prompt version "
+            f"({PROMPT_VERSION}, language={expected_language}). Retrain it with the matching bundle."
+        )
 
     examples = read_examples(args.data, args.zip_member, args.target_mode)
     model, tokenizer = FastLanguageModel.from_pretrained(
@@ -93,8 +123,18 @@ def evaluate(args: argparse.Namespace) -> dict[str, object]:
     predictions: list[str | None] = []
     records: list[dict[str, str | None]] = []
     for index, row in enumerate(examples):
-        prompt = to_prompt_completion(row, args.target_mode)["prompt"]
+        prompt = to_prompt_completion(
+            row,
+            args.target_mode,
+            few_shot_examples=few_shot_examples,
+        )["prompt"]
         inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+        prompt_tokens = inputs["input_ids"].shape[1]
+        if prompt_tokens > args.max_seq_length:
+            raise ValueError(
+                f"Prompt for row {index} uses {prompt_tokens} tokens, exceeding max-seq-length="
+                f"{args.max_seq_length}. Increase --max-seq-length or shorten the few-shot examples."
+            )
         with torch.inference_mode():
             output = model.generate(
                 **inputs,
@@ -122,6 +162,12 @@ def evaluate(args: argparse.Namespace) -> dict[str, object]:
     report: dict[str, object] = {
         "adapter": str(args.adapter),
         "target_mode": args.target_mode,
+        "prompt_language": "en" if args.target_mode == "cot-en" else "vi",
+        "prompt_version": PROMPT_VERSION,
+        "few_shot": bool(args.few_shot),
+        "few_shot_examples": len(few_shot_examples),
+        "few_shot_example_ids": [item["id"] for item in few_shot_examples],
+        "few_shot_labels": list(FEW_SHOT_LABELS) if args.few_shot else [],
         "dataset": str(args.data),
         "zip_member": args.zip_member,
         "examples": len(gold),
@@ -153,6 +199,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-seq-length", type=int, default=2048)
     parser.add_argument("--max-new-tokens", type=int, default=384)
+    parser.add_argument(
+        "--few-shot",
+        action="store_true",
+        help="Add the fixed non-holdout rare-class examples (no-cot, Vietnamese cot, or cot-distilled only)",
+    )
     return parser
 
 

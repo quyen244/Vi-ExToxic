@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--target-mode",
         choices=(*TARGET_MODES, "label-only", "distilled"),
         required=True,
-        help="no-cot: label only; cot: teacher thought_trace; cot-distilled: structured rationale plus thought_trace",
+        help="no-cot: Vietnamese label-only; cot: Vietnamese CoT; cot-distilled: Vietnamese structured CoT; cot-en: English-instruction CoT",
     )
     parser.add_argument("--max-seq-length", type=int, default=2048)
     parser.add_argument("--epochs", type=float, default=2.0)
@@ -87,7 +87,8 @@ def main() -> None:
     )
     config.validate()
     rows = read_examples(config.data, config.zip_member, config.target_mode)
-    print(f"Validated {len(rows)} rows from {config.data} for {config.target_mode} SFT.")
+    prompt_language = "en" if config.target_mode == "cot-en" else "vi"
+    print(f"Validated {len(rows)} rows from {config.data} for {config.target_mode} SFT (prompt language: {prompt_language}).")
     if not args.validate_only:
         train(config)
 

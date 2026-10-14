@@ -6,7 +6,7 @@ Explainable Vietnamese toxicity detection for social media text.
 
 **Current status:** Phase 1 teacher annotation is available; phases 2 and 3 are skipped; phase 4 SFT and evaluation tooling is implemented.
 
-**Results:** Pending. No model has been trained or evaluated by this repository yet.
+**Results:** The earlier Kaggle run produced preliminary scores with the previous prompt; results for this updated prompt and few-shot protocol are pending.
 
 ## Overview
 
@@ -14,11 +14,11 @@ Vi-ExToxic studies whether a small instruction model can classify Vietnamese soc
 
 The phase 1 annotations contain the input text, an emotion label, teacher-written explanation fields, a categorical toxicity label, and a teacher confidence score.
 
-The phase 4 training setup supports three response-target ablations on the same input rows and evaluation set:
+The phase 4 setup trains four adapters for three experiment groups on the same input rows and evaluation set:
 
 - **No-CoT:** the student predicts only the final label.
-- **CoT:** the student predicts the teacher thought trace, final label, and confidence score.
-- **CoT + distilled rationale:** the student predicts structured rationale fields, thought trace, final label, and confidence score.
+- **CoT-distilled:** the student predicts structured rationale fields, thought trace, final label, and confidence score.
+- **CoT prompt-language comparison:** train one adapter with Vietnamese instructions (`cot`) and another with English instructions (`cot-en`), using the same Vietnamese teacher targets.
 
 This is an exploratory response-target comparison on teacher-generated annotations.
 
@@ -32,7 +32,7 @@ It does not establish that distillation is better than human-grounded supervisio
 | 2. Cross-verification | Skipped | Not performed because of resource constraints. |
 | 3. Cultural review | Skipped | Not performed because of resource constraints. |
 | 4. Student SFT | Tooling implemented | Unsloth LoRA SFT is configured; Kaggle GPU is the intended training environment. |
-| Evaluation | Not run | No-CoT, CoT, and CoT + distilled Macro-F1 values remain pending. |
+| Evaluation | Updated protocol pending | No-CoT, CoT-distilled, CoT-Vietnamese, and CoT-English Macro-F1 values need to be rerun with the current prompt bundle. |
 
 ## Data
 
@@ -60,6 +60,8 @@ Report Macro-F1 together with per-class support, and interpret the score as expl
 Required training fields are `input_text`, `input_emotion`, and `final_label`.
 
 CoT SFT uses `thought_trace` and `confidence_score`.
+
+Both CoT prompt-language variants use the same Vietnamese rationale, label, and confidence targets.
 
 CoT + distilled SFT also uses `semantic_decoding`, `slang_interpretation`, `contextual_conflict`, and `target`.
 
@@ -159,7 +161,7 @@ The local GPU in the development environment has 6 GB VRAM, so full Qwen 3B fine
    !mkdir -p /kaggle/working/.cache/huggingface/hub /kaggle/working/unsloth_compiled_cache /kaggle/working/huggingface_tokenizers_cache
    ```
 
-4. Run no-CoT, CoT, and CoT + distilled jobs with the same model, seed, sequence length, and optimizer settings.
+4. Train four adapters for the no-CoT baseline, CoT-distilled run, and Vietnamese-versus-English CoT prompt comparison using the same model, seed, sequence length, and optimizer settings.
 5. Save adapters, checkpoints, configuration, and metrics under `/kaggle/working`, then download or publish them before the session ends.
 
 Kaggle sessions cannot access the local `D:\Vi-ExToxic` path directly.
@@ -172,11 +174,12 @@ After each SFT run, `training.publish_model` merges the LoRA adapter into 16-bit
 
 The Kaggle Notebook should have a Secret named `HF_TOKEN` with model repository write access.
 
-Repositories are private by default, and each of the three target modes should use a separate repository ID.
+Repositories are private by default, and each adapter should use a separate repository ID.
 
 ```python
 !python -m training.publish_model --adapter /kaggle/working/outputs/no-cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-no-cot --target-mode no-cot
 !python -m training.publish_model --adapter /kaggle/working/outputs/cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot --target-mode cot
+!python -m training.publish_model --adapter /kaggle/working/outputs/cot-en/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot-en --target-mode cot-en
 !python -m training.publish_model --adapter /kaggle/working/outputs/cot-distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot-distilled --target-mode cot-distilled
 ```
 
@@ -198,13 +201,20 @@ Docker image builds do not download the model weights; model loading occurs when
 
 ## Evaluation and reporting
 
-Run all three target modes against the same frozen holdout with identical decoding settings.
+Run all four adapters against the same frozen holdout with identical decoding settings.
+
+Run a second inference pass with the fixed rare-class few-shot examples for `no-cot`, Vietnamese `cot`, and `cot-distilled`.
+Keep the English `cot-en` language comparison no-shot so the prompt-language comparison remains controlled.
+
+The three-shot examples combine the supplied Implicit Toxicity sample with Identity-Based Hate and Ambiguous/Noise examples from the training split; none come from the holdout.
 
 The evaluation report should include Macro-F1, per-class precision/recall/F1 and support, a confusion matrix, and row-level predictions.
 
+Run `python -m training.present_results` after all seven evaluations to generate the formatted comparison at `outputs/comparison.md`.
+
 Keep raw model outputs and the evaluated predictions with the run configuration so the reported values can be reproduced.
 
-Do not fill in the CV metrics until all three runs have completed and the evaluation artifacts have been reviewed.
+Do not fill in the CV metrics until all seven evaluations have completed and the evaluation artifacts have been reviewed.
 
 ## CV summary
 
@@ -213,16 +223,16 @@ Do not fill in the CV metrics until all three runs have completed and the evalua
 **SE363 - Teacher labeling, LoRA SFT and response-target comparison**
 
 - Prepared teacher annotations for Vietnamese social-media comments with toxicity labels and concise explanations.
-- Set up no-CoT, CoT, and CoT + distilled LoRA SFT runs using a shared evaluation protocol.
-- Compare all three runs on the same teacher-labeled holdout; results are exploratory because the holdout has sparse classes and is not independently verified.
-- Results pending: No-CoT Macro-F1 ____ · CoT Macro-F1 ____ · CoT + distilled Macro-F1 ____.
+- Set up no-CoT, CoT-distilled, and Vietnamese/English CoT LoRA SFT runs using a shared evaluation protocol.
+- Compare four adapters and three few-shot inference variants on the same teacher-labeled holdout; results are exploratory because the holdout has sparse classes and is not independently verified.
+- Results pending: No-CoT Macro-F1 ____ · CoT-distilled Macro-F1 ____ · CoT-VI Macro-F1 ____ · CoT-EN Macro-F1 ____ · Few-shot Macro-F1 changes ____.
 
 ## Limitations
 
 - Phases 2 and 3 were skipped because of resource constraints.
 - Teacher annotation confidence is not independent verification.
 - The 320-row holdout has only one `Ambiguous/Noise` example and six `Identity-Based Hate` examples.
-- The repository currently contains no completed SFT run, adapter, or verified model metrics.
+- The repository does not contain Kaggle adapters or result artifacts; the earlier scores came from a previous prompt version.
 - The inference app and streaming UI are prototypes and can return mocked outputs.
 
 ## License

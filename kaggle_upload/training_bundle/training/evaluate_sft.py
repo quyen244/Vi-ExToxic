@@ -10,7 +10,7 @@ from collections import Counter
 from pathlib import Path
 
 from .data import LABELS, read_examples
-from .prompts import to_prompt_completion
+from .prompts import TARGET_MODES, to_prompt_completion
 
 
 def extract_label(text: str) -> str | None:
@@ -149,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--adapter", type=Path, required=True)
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--zip-member")
-    parser.add_argument("--target-mode", choices=("label-only", "distilled"), required=True)
+    parser.add_argument("--target-mode", choices=(*TARGET_MODES, "label-only", "distilled"), required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--max-seq-length", type=int, default=2048)
     parser.add_argument("--max-new-tokens", type=int, default=384)

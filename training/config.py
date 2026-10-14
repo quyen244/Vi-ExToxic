@@ -29,8 +29,8 @@ class SFTConfig:
     resume_from_checkpoint: str | None
 
     def validate(self) -> None:
-        if self.target_mode not in {"label-only", "distilled"}:
-            raise ValueError("target_mode must be 'label-only' or 'distilled'")
+        if self.target_mode not in {"no-cot", "cot", "cot-distilled", "label-only", "distilled"}:
+            raise ValueError("target_mode must be 'no-cot', 'cot', or 'cot-distilled'")
         if self.max_seq_length < 128:
             raise ValueError("max_seq_length must be at least 128")
         if self.epochs <= 0 or self.batch_size <= 0:

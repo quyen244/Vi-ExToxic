@@ -14,10 +14,11 @@ Vi-ExToxic studies whether a small instruction model can classify Vietnamese soc
 
 The phase 1 annotations contain the input text, an emotion label, teacher-written explanation fields, a categorical toxicity label, and a teacher confidence score.
 
-The phase 4 training setup supports two response targets using the same input rows and evaluation set:
+The phase 4 training setup supports three response-target ablations on the same input rows and evaluation set:
 
-- **Label-only baseline:** the student predicts the final label.
-- **Explanation-distilled SFT:** the student predicts the teacher explanation fields and final label.
+- **No-CoT:** the student predicts only the final label.
+- **CoT:** the student predicts the teacher thought trace, final label, and confidence score.
+- **CoT + distilled rationale:** the student predicts structured rationale fields, thought trace, final label, and confidence score.
 
 This is an exploratory response-target comparison on teacher-generated annotations.
 
@@ -31,7 +32,7 @@ It does not establish that distillation is better than human-grounded supervisio
 | 2. Cross-verification | Skipped | Not performed because of resource constraints. |
 | 3. Cultural review | Skipped | Not performed because of resource constraints. |
 | 4. Student SFT | Tooling implemented | Unsloth LoRA SFT is configured; Kaggle GPU is the intended training environment. |
-| Evaluation | Not run | Baseline and distilled Macro-F1 values remain pending. |
+| Evaluation | Not run | No-CoT, CoT, and CoT + distilled Macro-F1 values remain pending. |
 
 ## Data
 
@@ -58,7 +59,9 @@ Report Macro-F1 together with per-class support, and interpret the score as expl
 
 Required training fields are `input_text`, `input_emotion`, and `final_label`.
 
-Explanation-distilled SFT also uses `semantic_decoding`, `slang_interpretation`, `contextual_conflict`, `target`, and `thought_trace`.
+CoT SFT uses `thought_trace` and `confidence_score`.
+
+CoT + distilled SFT also uses `semantic_decoding`, `slang_interpretation`, `contextual_conflict`, and `target`.
 
 Allowed labels are `Constructive/Clean`, `Implicit Toxicity`, `Explicit Hostility`, `Identity-Based Hate`, and `Ambiguous/Noise`.
 
@@ -156,7 +159,7 @@ The local GPU in the development environment has 6 GB VRAM, so full Qwen 3B fine
    !mkdir -p /kaggle/working/.cache/huggingface/hub /kaggle/working/unsloth_compiled_cache /kaggle/working/huggingface_tokenizers_cache
    ```
 
-4. Run label-only and explanation-distilled jobs with the same model, seed, sequence length, and optimizer settings.
+4. Run no-CoT, CoT, and CoT + distilled jobs with the same model, seed, sequence length, and optimizer settings.
 5. Save adapters, checkpoints, configuration, and metrics under `/kaggle/working`, then download or publish them before the session ends.
 
 Kaggle sessions cannot access the local `D:\Vi-ExToxic` path directly.
@@ -169,14 +172,15 @@ After each SFT run, `training.publish_model` merges the LoRA adapter into 16-bit
 
 The Kaggle Notebook should have a Secret named `HF_TOKEN` with model repository write access.
 
-Repositories are private by default, and the label-only and distilled runs should use separate repository IDs.
+Repositories are private by default, and each of the three target modes should use a separate repository ID.
 
 ```python
-!python -m training.publish_model --adapter /kaggle/working/outputs/label-only/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-label-only --target-mode label-only
-!python -m training.publish_model --adapter /kaggle/working/outputs/distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-distilled --target-mode distilled
+!python -m training.publish_model --adapter /kaggle/working/outputs/no-cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-no-cot --target-mode no-cot
+!python -m training.publish_model --adapter /kaggle/working/outputs/cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot --target-mode cot
+!python -m training.publish_model --adapter /kaggle/working/outputs/cot-distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot-distilled --target-mode cot-distilled
 ```
 
-Authenticate locally with `hf auth login` and download the published model using `hf download YOUR_HF_USERNAME/vi-extoxic-label-only --local-dir models/label-only`.
+Authenticate locally with `hf auth login` and download the published model using `hf download YOUR_HF_USERNAME/vi-extoxic-no-cot --local-dir models/no-cot`.
 
 The downloaded model is the input artifact for the next step: connecting model inference to the local UI for hands-on testing.
 
@@ -194,13 +198,13 @@ Docker image builds do not download the model weights; model loading occurs when
 
 ## Evaluation and reporting
 
-Run both target modes against the same frozen holdout with identical decoding settings.
+Run all three target modes against the same frozen holdout with identical decoding settings.
 
 The evaluation report should include Macro-F1, per-class precision/recall/F1 and support, a confusion matrix, and row-level predictions.
 
 Keep raw model outputs and the evaluated predictions with the run configuration so the reported values can be reproduced.
 
-Do not fill in the CV metrics until both runs have completed and the evaluation artifacts have been reviewed.
+Do not fill in the CV metrics until all three runs have completed and the evaluation artifacts have been reviewed.
 
 ## CV summary
 
@@ -209,9 +213,9 @@ Do not fill in the CV metrics until both runs have completed and the evaluation 
 **SE363 - Teacher labeling, LoRA SFT and response-target comparison**
 
 - Prepared teacher annotations for Vietnamese social-media comments with toxicity labels and concise explanations.
-- Set up a label-only LoRA SFT baseline and an explanation-distilled student run using a shared evaluation protocol.
-- Compare both runs on the same teacher-labeled holdout; results are exploratory because the holdout has sparse classes and is not independently verified.
-- Results pending: Baseline Macro-F1 ____ · Distilled Macro-F1 ____ · Difference ____.
+- Set up no-CoT, CoT, and CoT + distilled LoRA SFT runs using a shared evaluation protocol.
+- Compare all three runs on the same teacher-labeled holdout; results are exploratory because the holdout has sparse classes and is not independently verified.
+- Results pending: No-CoT Macro-F1 ____ · CoT Macro-F1 ____ · CoT + distilled Macro-F1 ____.
 
 ## Limitations
 

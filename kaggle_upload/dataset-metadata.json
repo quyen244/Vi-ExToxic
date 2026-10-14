@@ -18,16 +18,12 @@
       "description": "Dependencies for installing the unpacked SFT package in a Kaggle Notebook."
     },
     {
-      "path": "training_bundle.zip",
-      "description": "Convenience archive containing the Python package, dependencies, and training instructions."
-    },
-    {
       "path": "README.md",
       "description": "Kaggle upload and execution guide."
     },
     {
       "path": "SHA256SUMS.txt",
-      "description": "Checksums for the archive and training source bundle."
+      "description": "Checksums for the data archive and training source files."
     }
   ]
 }

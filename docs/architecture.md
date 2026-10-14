@@ -22,9 +22,13 @@ The dataset reader is a pure Python component and can validate a CSV member dire
 
 The prompt formatter contains the target-mode rules.
 
-The label-only target contains only `final_label`.
+The no-CoT target contains only `final_label`.
 
-The distilled target contains the four teacher rationale fields, `thought_trace`, and `final_label`.
+The CoT target contains `thought_trace`, `final_label`, and numeric `confidence_score`.
+
+The CoT plus distilled-rationale target adds the four structured teacher rationale fields: `semantic_decoding`, `slang_interpretation`, `contextual_conflict`, and `target`.
+
+The student prompt adapts the role and label definitions in `notebooks/prompts/prompt_version_1.txt`; it uses a target-specific JSON schema that matches each training completion.
 
 The training adapter imports Torch, Unsloth, TRL, and Datasets lazily so that schema validation and command help do not require CUDA libraries.
 
@@ -48,9 +52,9 @@ For resumable training, rerun against the same output directory and select the l
 
 ## Comparison contract
 
-The baseline and distilled modes use the same annotated training rows, base model, holdout, random seed, and training configuration.
+All three modes use the same annotated training rows, base model, holdout, random seed, and training configuration.
 
-The training response is the only intended experimental difference: categorical label only versus teacher explanations plus categorical label.
+The training response is the intended experimental difference: label only, teacher thought trace, or thought trace plus structured teacher rationale.
 
 The holdout labels were also produced by the teacher.
 

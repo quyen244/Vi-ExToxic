@@ -16,6 +16,9 @@ LABELS = (
 )
 
 REQUIRED_COLUMNS = ("input_text", "input_emotion", "final_label")
+TARGET_MODES = ("no-cot", "cot", "cot-distilled", "label-only", "distilled")
+_MODE_ALIASES = {"label-only": "no-cot", "distilled": "cot-distilled"}
+CONFIDENCE_COLUMN = "confidence_score"
 RATIONALE_COLUMNS = (
     "semantic_decoding",
     "slang_interpretation",
@@ -23,6 +26,14 @@ RATIONALE_COLUMNS = (
     "target",
     "thought_trace",
 )
+
+
+def canonical_target_mode(target_mode: str) -> str:
+    """Normalize legacy target-mode names to the current experiment names."""
+    mode = _MODE_ALIASES.get(target_mode, target_mode)
+    if mode not in {"no-cot", "cot", "cot-distilled"}:
+        raise ValueError(f"Unsupported target mode: {target_mode}")
+    return mode
 
 def _open_csv(path: Path, member: str | None) -> TextIO:
     """Open a CSV, a ZIP member, or a CSV inside an extracted directory."""
@@ -94,12 +105,11 @@ def read_examples(
 ) -> list[dict[str, str]]:
     """Load rows from a schema-checked CSV, retaining only relevant columns.
 
-    An empty input_emotion is allowed and formatted as "Không rõ". Distilled
-    training requires all five teacher explanation columns to be present and
-    non-empty for every row.
+    An empty input_emotion is allowed and formatted as "Không rõ". CoT modes
+    require a teacher thought trace and numeric confidence. CoT-distilled also
+    requires the four structured rationale fields.
     """
-    if target_mode not in {"label-only", "distilled"}:
-        raise ValueError(f"Unsupported target mode: {target_mode}")
+    mode = canonical_target_mode(target_mode)
     source = Path(path).expanduser()
     if not source.is_file() and not source.is_dir():
         raise FileNotFoundError(f"Dataset file or directory does not exist: {source}")
@@ -110,8 +120,10 @@ def read_examples(
             raise ValueError(f"CSV has no header: {source}")
         headers = [h.strip().lstrip("\ufeff") if h else "" for h in reader.fieldnames]
         required_columns = REQUIRED_COLUMNS
-        if target_mode == "distilled":
-            required_columns += RATIONALE_COLUMNS
+        if mode == "cot":
+            required_columns += ("thought_trace", CONFIDENCE_COLUMN)
+        elif mode == "cot-distilled":
+            required_columns += RATIONALE_COLUMNS + (CONFIDENCE_COLUMN,)
         missing = [column for column in required_columns if column not in headers]
         if missing:
             raise ValueError(
@@ -132,14 +144,28 @@ def read_examples(
                 raise ValueError(
                     f"Unknown final_label {label!r} at row {line_number}; expected one of {LABELS}"
                 )
-            if target_mode == "distilled":
-                empty_rationale = [column for column in RATIONALE_COLUMNS if not row.get(column, "")]
+            if mode in {"cot", "cot-distilled"}:
+                rationale_columns = ("thought_trace",)
+                if mode == "cot-distilled":
+                    rationale_columns = RATIONALE_COLUMNS
+                empty_rationale = [column for column in rationale_columns if not row.get(column, "")]
                 if empty_rationale:
                     raise ValueError(
                         f"Empty teacher explanation field(s) {empty_rationale} at CSV row "
                         f"{line_number} in {source}"
                     )
-            example = {column: row.get(column, "") for column in REQUIRED_COLUMNS + RATIONALE_COLUMNS}
+                try:
+                    confidence = float(row[CONFIDENCE_COLUMN])
+                except ValueError as exc:
+                    raise ValueError(
+                        f"Invalid numeric confidence_score at row {line_number} in {source}"
+                    ) from exc
+                if not 0.0 <= confidence <= 1.0:
+                    raise ValueError(
+                        f"confidence_score must be in [0, 1] at row {line_number} in {source}"
+                    )
+            example_columns = REQUIRED_COLUMNS + RATIONALE_COLUMNS + (CONFIDENCE_COLUMN,)
+            example = {column: row.get(column, "") for column in example_columns}
             examples.append(example)
 
     if not examples:

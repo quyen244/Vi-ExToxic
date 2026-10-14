@@ -41,7 +41,11 @@ From the repository root, create the Kaggle Dataset.
 
 Kaggle keeps newly created datasets private unless `--public` is specified.
 
-If you downloaded `dist/vi-extoxic-kaggle-upload.zip`, extract it to a folder first and run the commands against that extracted folder.
+If you downloaded `dist/vi-extoxic-kaggle-upload.zip`, extract it once and upload the extracted folder contents.
+
+Do not put a `training_bundle.zip` beside the `training_bundle/` folder.
+
+Kaggle extracts ZIP files into folders, so including both creates a `training_bundle` directory collision.
 
 ```powershell
 .\.venv\Scripts\kaggle.exe datasets create -p .\kaggle_upload -t -r skip
@@ -50,10 +54,10 @@ If you downloaded `dist/vi-extoxic-kaggle-upload.zip`, extract it to a folder fi
 If `quyenuit24/vi-extoxic` already exists, publish a new dataset version instead:
 
 ```powershell
-.\.venv\Scripts\kaggle.exe datasets version -p .\kaggle_upload -m "Add unpacked training package" -r skip
+.\.venv\Scripts\kaggle.exe datasets version -p .\kaggle_upload -m "Add no-CoT and CoT SFT variants" -r skip
 ```
 
-The dataset includes `archive.zip`, the unpacked `training_bundle/training/` package, a convenience `training_bundle.zip`, and the README and checksum files.
+The dataset includes `archive.zip`, the unpacked `training_bundle/training/` package, and the README and checksum files.
 
 The package does not upload model weights or training outputs.
 
@@ -85,33 +89,36 @@ Keep Hugging Face and Unsloth caches under `/kaggle/working`, not under the atta
 Validate the training and holdout CSVs before downloading model weights:
 
 ```python
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode label-only --output-dir /kaggle/working/outputs/label-only --validate-only
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode distilled --output-dir /kaggle/working/outputs/distilled --validate-only
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode distilled --output-dir /kaggle/working/outputs/holdout-validation --validate-only
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --validate-only
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --validate-only
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled --validate-only
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/holdout-validation --validate-only
 ```
 
-## 5. Run both SFT variants
+## 5. Run all three SFT variants
 
 These commands use the same student, data, seed, sequence length, and optimizer settings.
 
-Run both in the same notebook session when time allows.
+Run all three in the same notebook session when time allows.
 
 Each process releases GPU memory when it exits.
 
 ```python
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode label-only --output-dir /kaggle/working/outputs/label-only --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode distilled --output-dir /kaggle/working/outputs/distilled --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
 ```
 
 The default model is `unsloth/Qwen2.5-3B-Instruct-bnb-4bit`.
 
-Pass `--model <HF_MODEL_ID>` to both commands if you select another model.
+Pass `--model <HF_MODEL_ID>` to each command if you select another model.
 
-## 6. Evaluate on the shared holdout
+## 6. Evaluate all three variants on the shared holdout
 
 ```python
-!python -m training.evaluate_sft --adapter /kaggle/working/outputs/label-only/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode label-only --output-dir /kaggle/working/outputs/label-only/evaluation
-!python -m training.evaluate_sft --adapter /kaggle/working/outputs/distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode distilled --output-dir /kaggle/working/outputs/distilled/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/no-cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot --output-dir /kaggle/working/outputs/cot/evaluation
+!python -m training.evaluate_sft --adapter /kaggle/working/outputs/cot-distilled/adapter --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/labeled_test_dataset_phase_1.csv --target-mode cot-distilled --output-dir /kaggle/working/outputs/cot-distilled/evaluation
 ```
 
 Each evaluation directory contains `evaluation.json` and `predictions.csv`.
@@ -126,13 +133,14 @@ The publish script merges the saved LoRA adapter into a 16-bit model and uploads
 
 In Kaggle, add a Notebook Secret named `HF_TOKEN` containing a Hugging Face token with write access to model repositories.
 
-Keep each run in a separate repository so the label-only and distilled models remain easy to compare.
+Publish each target mode to a separate repository for clear comparison.
 
 The repositories are private by default; add `--public` only when you intend to publish the model publicly.
 
 ```python
-!python -m training.publish_model --adapter /kaggle/working/outputs/label-only/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-label-only --target-mode label-only
-!python -m training.publish_model --adapter /kaggle/working/outputs/distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-distilled --target-mode distilled
+!python -m training.publish_model --adapter /kaggle/working/outputs/no-cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-no-cot --target-mode no-cot
+!python -m training.publish_model --adapter /kaggle/working/outputs/cot/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot --target-mode cot
+!python -m training.publish_model --adapter /kaggle/working/outputs/cot-distilled/adapter --repo-id YOUR_HF_USERNAME/vi-extoxic-cot-distilled --target-mode cot-distilled
 ```
 
 Replace `YOUR_HF_USERNAME` with your Hugging Face account name.
@@ -153,11 +161,11 @@ For a private repository, authenticate locally with `hf auth login` before downl
 
 Use `hf auth login` and paste the token into its interactive prompt; do not put it in a shell command or source file.
 
-Download one or both merged models into the ignored `models/` directory:
+Download the merged models you want to compare into the ignored `models/` directory:
 
 ```powershell
-hf download YOUR_HF_USERNAME/vi-extoxic-label-only --local-dir models/label-only
-hf download YOUR_HF_USERNAME/vi-extoxic-distilled --local-dir models/distilled
+hf download YOUR_HF_USERNAME/vi-extoxic-no-cot --local-dir models/no-cot
+hf download YOUR_HF_USERNAME/vi-extoxic-cot-distilled --local-dir models/cot-distilled
 ```
 
 Those local model folders can then be loaded by the project's inference UI when that local testing flow is implemented.
@@ -174,14 +182,14 @@ Create one archive of adapters, run metadata, and evaluation outputs before the 
 
 Save a notebook version with output and download `vi-extoxic-results.zip` from the notebook's output files.
 
-If both runs do not fit in one session, download or save the first run's output before ending its session.
+If all three runs do not fit in one session, download or save each completed run before ending its session.
 
 ## Resume a run
 
 If a checkpoint exists in the same Kaggle working session or has been restored to the same output directory, resume with `--resume-from-checkpoint latest`.
 
 ```python
-!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode label-only --output-dir /kaggle/working/outputs/label-only --resume-from-checkpoint latest --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
+!python -m training.train_sft --data /kaggle/input/datasets/quyenuit24/vi-extoxic/archive/dataset_phase_1.csv --target-mode no-cot --output-dir /kaggle/working/outputs/no-cot --resume-from-checkpoint latest --epochs 2 --batch-size 1 --gradient-accumulation-steps 8 --max-seq-length 2048 --learning-rate 2e-4 --seed 3407
 ```
 
-Use a separate output directory for the distilled run.
+Use separate output directories for `cot` and `cot-distilled` runs.

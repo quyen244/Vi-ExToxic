@@ -8,6 +8,13 @@ import tempfile
 from pathlib import Path
 
 DEFAULT_BASE_MODEL = "unsloth/Qwen2.5-3B-Instruct-bnb-4bit"
+TARGET_MODE_DESCRIPTIONS = {
+    "no-cot": "predict the toxicity category without generating reasoning",
+    "cot": "predict the toxicity category with a teacher-generated thought trace and confidence score",
+    "cot-distilled": "predict the toxicity category with structured rationale, a teacher-generated thought trace, and confidence score",
+    "label-only": "predict the toxicity category without generating reasoning",
+    "distilled": "predict the toxicity category with structured rationale, a teacher-generated thought trace, and confidence score",
+}
 
 
 def _read_token() -> str:
@@ -32,10 +39,7 @@ def _read_token() -> str:
 
 
 def _model_card(base_model: str, target_mode: str, repo_id: str) -> str:
-    mode_description = {
-        "label-only": "predict the toxicity category without an explanation",
-        "distilled": "predict the toxicity category and provide a concise explanation",
-    }[target_mode]
+    mode_description = TARGET_MODE_DESCRIPTIONS[target_mode]
     return f"""---
 language:
   - vi
@@ -71,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--adapter", type=Path, required=True, help="Directory saved by training.train_sft")
     parser.add_argument("--repo-id", required=True, help="Hugging Face model repository, e.g. user/vi-extoxic-baseline")
-    parser.add_argument("--target-mode", choices=("label-only", "distilled"), required=True)
+    parser.add_argument("--target-mode", choices=tuple(TARGET_MODE_DESCRIPTIONS), required=True)
     parser.add_argument("--base-model", default=DEFAULT_BASE_MODEL)
     parser.add_argument("--max-seq-length", type=int, default=2048)
     parser.add_argument("--public", action="store_true", help="Make the Hub repository public; private is the default")

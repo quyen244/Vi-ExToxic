@@ -1,4 +1,4 @@
-"""CLI for label-only baseline or explanation-distilled QLoRA SFT."""
+"""CLI for no-CoT, CoT, and CoT plus structured-distillation QLoRA SFT."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .config import SFTConfig
 from .data import read_examples
+from .prompts import TARGET_MODES
 from .trainer import train
 
 
@@ -20,7 +21,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--model", default="unsloth/Qwen2.5-3B-Instruct-bnb-4bit")
-    parser.add_argument("--target-mode", choices=("label-only", "distilled"), required=True)
+    parser.add_argument(
+        "--target-mode",
+        choices=(*TARGET_MODES, "label-only", "distilled"),
+        required=True,
+        help="no-cot: label only; cot: teacher thought_trace; cot-distilled: structured rationale plus thought_trace",
+    )
     parser.add_argument("--max-seq-length", type=int, default=2048)
     parser.add_argument("--epochs", type=float, default=2.0)
     parser.add_argument("--batch-size", type=int, default=1)

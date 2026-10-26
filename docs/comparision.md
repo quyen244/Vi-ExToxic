@@ -75,3 +75,55 @@ Mục tiêu là chứng minh việc "học từ Model lớn" (Teacher) tốt hơ
 1.  **Fix seed:** Đảm bảo tính lặp lại (Reproducibility).
 2.  **Error Analysis:** Lấy ra 20-50 sample mà các model đoán sai để phân tích tại sao (do slang, do ngữ cảnh hay do thiếu kiến thức nền).
 3.  **Ablation Study:** Chứng minh rõ mỗi thành phần thêm vào (như Emotion) đóng góp bao nhiêu % vào tổng điểm.
+
+---
+
+## Vi-ExToxic evaluation results
+
+All runs use the same 320-row held-out dataset and deterministic decoding.
+Few-shot examples come from the supplied example and the training split, never the holdout.
+
+### No-shot results
+
+| Run | Prompt language | Examples | Accuracy | Macro-F1 | Unparsed |
+|---|---|---:|---:|---:|---:|
+| No-CoT (Vietnamese prompt) | Vietnamese | 320 | 78.12% | 37.07% | 0 |
+| CoT-distilled (Vietnamese prompt) | Vietnamese | 320 | 71.25% | 40.43% | 0 |
+| CoT (Vietnamese prompt) | Vietnamese | 320 | 74.38% | 34.06% | 0 |
+| CoT (English prompt) | English | 320 | 71.56% | 34.58% | 0 |
+
+### CoT prompt-language comparison (no-shot)
+
+English CoT Macro-F1 is 0.52 percentage points higher than Vietnamese CoT.
+
+### Few-shot impact
+
+| Run | No-shot Accuracy | Few-shot Accuracy | No-shot Macro-F1 | Few-shot Macro-F1 | Macro-F1 change |
+|---|---:|---:|---:|---:|---:|
+| No-CoT (Vietnamese prompt) | 78.12% | 62.81% | 37.07% | 32.51% | -4.56 pp |
+| CoT (Vietnamese prompt) | 74.38% | 61.88% | 34.06% | 31.46% | -2.60 pp |
+| CoT-distilled (Vietnamese prompt) | 71.25% | 67.50% | 40.43% | 34.44% | -5.99 pp |
+
+### Per-class F1: no-shot
+
+| Label | Support | No-CoT | CoT-distilled | CoT-VI | CoT-EN |
+|---|---:|---:|---:|---:|---:|
+| Constructive/Clean | 231 | 88.31% | 83.37% | 85.27% | 83.83% |
+| Implicit Toxicity | 29 | 28.57% | 27.69% | 20.41% | 20.59% |
+| Explicit Hostility | 53 | 68.47% | 62.50% | 64.62% | 68.47% |
+| Identity-Based Hate | 6 | 0.00% | 28.57% | 0.00% | 0.00% |
+| Ambiguous/Noise | 1 | 0.00% | 0.00% | 0.00% | 0.00% |
+
+### Per-class F1: few-shot impact
+
+| Label | Support | No-CoT (0 → 3) | CoT-VI (0 → 3) | CoT-distilled (0 → 3) |
+|---|---:|---:|---:|---:|
+| Constructive/Clean | 231 | 88.31% → 79.62% | 85.27% → 77.51% | 83.37% → 81.00% |
+| Implicit Toxicity | 29 | 28.57% → 9.52% | 20.41% → 17.86% | 27.69% → 4.55% |
+| Explicit Hostility | 53 | 68.47% → 62.00% | 64.62% → 55.05% | 62.50% → 66.67% |
+| Identity-Based Hate | 6 | 0.00% → 11.43% | 0.00% → 6.90% | 28.57% → 20.00% |
+| Ambiguous/Noise | 1 | 0.00% → 0.00% | 0.00% → 0.00% | 0.00% → 0.00% |
+
+Total held-out support: 320 examples.
+Classes with fewer than 10 examples: Identity-Based Hate (n=6), Ambiguous/Noise (n=1).
+Interpret per-class scores with their support, especially for rare labels.

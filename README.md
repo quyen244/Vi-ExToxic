@@ -4,9 +4,10 @@ Explainable Vietnamese toxicity detection for social media text.
 
 **Project:** SE363, 2026
 
-**Current status:** Phase 1 teacher annotation is available; phases 2 and 3 are skipped; phase 4 SFT and evaluation tooling is implemented.
+**Current status:** Phase 1 teacher annotation is available; phases 2 and 3 are skipped; phase 4 SFT and evaluation are complete for all seven runs.
 
-**Results:** The earlier Kaggle run produced preliminary scores with the previous prompt; results for this updated prompt and few-shot protocol are pending.
+**Results:** Seven evaluations on the 320-row holdout are reported in [docs/comparision.md](docs/comparision.md).
+CoT-distilled has the best no-shot Macro-F1 (40.43%), No-CoT has the best no-shot accuracy (78.12%), and three-shot prompting lowered Macro-F1 for every adapter tested.
 
 ## Overview
 
@@ -31,8 +32,8 @@ It does not establish that distillation is better than human-grounded supervisio
 | 1. Teacher annotation | Available | Annotation CSVs are stored in `data/archive.zip`. |
 | 2. Cross-verification | Skipped | Not performed because of resource constraints. |
 | 3. Cultural review | Skipped | Not performed because of resource constraints. |
-| 4. Student SFT | Tooling implemented | Unsloth LoRA SFT is configured; Kaggle GPU is the intended training environment. |
-| Evaluation | Updated protocol pending | No-CoT, CoT-distilled, CoT-Vietnamese, and CoT-English Macro-F1 values need to be rerun with the current prompt bundle. |
+| 4. Student SFT | Done | Unsloth LoRA SFT on a Kaggle GPU; four adapters trained. |
+| Evaluation | Done | Four no-shot runs and three few-shot runs on the same 320-row holdout; see [docs/comparision.md](docs/comparision.md). |
 
 ## Data
 
@@ -211,10 +212,27 @@ The three-shot examples combine the supplied Implicit Toxicity sample with Ident
 The evaluation report should include Macro-F1, per-class precision/recall/F1 and support, a confusion matrix, and row-level predictions.
 
 Run `python -m training.present_results` after all seven evaluations to generate the formatted comparison at `outputs/comparison.md`.
+The generated results are kept in [docs/comparision.md](docs/comparision.md).
+
+### Results summary
+
+All runs use the same 320-row holdout, deterministic decoding, and zero unparsed outputs.
+
+| Run | Accuracy | Macro-F1 | Three-shot Macro-F1 | Change |
+| --- | ---: | ---: | ---: | ---: |
+| No-CoT (Vietnamese prompt) | 78.12% | 37.07% | 32.51% | -4.56 pp |
+| CoT-distilled (Vietnamese prompt) | 71.25% | 40.43% | 34.44% | -5.99 pp |
+| CoT (Vietnamese prompt) | 74.38% | 34.06% | 31.46% | -2.60 pp |
+| CoT (English prompt) | 71.56% | 34.58% | not run | - |
+
+- English CoT Macro-F1 is 0.52 pp above Vietnamese CoT, a gap too small to call a real difference on this holdout.
+- CoT-distilled is the only adapter that scores on `Identity-Based Hate` without examples (28.57% F1, n=6).
+- All adapters score 0.00% on `Ambiguous/Noise` (n=1).
+- Few-shot examples lowered accuracy and Macro-F1 for all three adapters, mainly by hurting `Implicit Toxicity` and `Constructive/Clean`.
+- Macro-F1 is low overall because the rare classes are near zero; the per-class tables in the comparison file show the detail.
 
 Keep raw model outputs and the evaluated predictions with the run configuration so the reported values can be reproduced.
 
-Do not fill in the CV metrics until all seven evaluations have completed and the evaluation artifacts have been reviewed.
 
 ## CV summary
 
@@ -225,14 +243,15 @@ Do not fill in the CV metrics until all seven evaluations have completed and the
 - Prepared teacher annotations for Vietnamese social-media comments with toxicity labels and concise explanations.
 - Set up no-CoT, CoT-distilled, and Vietnamese/English CoT LoRA SFT runs using a shared evaluation protocol.
 - Compare four adapters and three few-shot inference variants on the same teacher-labeled holdout; results are exploratory because the holdout has sparse classes and is not independently verified.
-- Results pending: No-CoT Macro-F1 ____ · CoT-distilled Macro-F1 ____ · CoT-VI Macro-F1 ____ · CoT-EN Macro-F1 ____ · Few-shot Macro-F1 changes ____.
+- Results: No-CoT Macro-F1 37.07% · CoT-distilled 40.43% · CoT-VI 34.06% · CoT-EN 34.58% · three-shot prompting changed Macro-F1 by -4.56, -5.99, and -2.60 pp for No-CoT, CoT-distilled, and CoT-VI.
 
 ## Limitations
 
 - Phases 2 and 3 were skipped because of resource constraints.
 - Teacher annotation confidence is not independent verification.
 - The 320-row holdout has only one `Ambiguous/Noise` example and six `Identity-Based Hate` examples.
-- The repository does not contain Kaggle adapters or result artifacts; the earlier scores came from a previous prompt version.
+- The repository does not contain Kaggle adapters or raw result artifacts; only the summarized scores in `docs/comparision.md` are stored.
+- With n=6 and n=1, per-class scores for `Identity-Based Hate` and `Ambiguous/Noise` are too noisy to rank the adapters.
 - The inference app and streaming UI are prototypes and can return mocked outputs.
 
 ## License
